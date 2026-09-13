@@ -444,6 +444,10 @@ export async function GET(req, context = {}) {
     if (routeKey === 'universe') {
       const data = readLocalUniverse();
       if (data) return jsonResponse(data, 200, { 'x-fallback': 'cached-universe' });
+      return jsonResponse({ data: [] }, 200);
+    }
+    if (routeKey === 'top-ten' || routeKey === 'most-active') {
+      return jsonResponse({ data: [] }, 200);
     }
     if (nsePath?.includes('bulk-deals') || nsePath?.includes('short-deal') || nsePath?.includes('block-deal') || nsePath?.includes('large-deal') || nsePath?.includes('snapshot-capital-market-largedeal')) {
       const fallbackDeals = [
@@ -526,9 +530,6 @@ export async function GET(req, context = {}) {
         }
       }, 200, { 'x-fallback': 'nse-deals-safe-fallback' });
     }
-    if (nsePath?.includes('/api/equity-stockIndices')) {
-      return jsonResponse({ data: [], unavailable: true, error: err?.message }, 200);
-    }
-    return jsonResponse({ error: 'Failed to fetch NSE data', detail: err?.message }, 502);
+    return jsonResponse({ data: [], unavailable: true, message: err?.message || 'NSE endpoint fallback' }, 200);
   }
 }
