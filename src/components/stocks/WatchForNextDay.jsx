@@ -593,7 +593,7 @@ export default function WatchForNextDay({ onQuickTrade = null, onAddToPortfolio 
       })()}
 
       {/* ── 2. TARGET SELL DATE SELECTOR & NSE CALENDAR STRIP ── */}
-      <div className="card border-0 shadow-sm rounded-4 p-3 p-md-4 mb-4 bg-white border border-secondary border-opacity-10">
+      <div className="card border-0 shadow-sm rounded-4 p-3 p-md-4 mb-4 bg-white border border-secondary border-opacity-10" style={{ display: 'none' }}>
         <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3 pb-2 border-bottom">
           <div className="d-flex align-items-center gap-2">
             <span className="fs-4 text-primary">📅</span>
@@ -682,7 +682,7 @@ export default function WatchForNextDay({ onQuickTrade = null, onAddToPortfolio 
       {/* ── 2.5 💰 CAPITAL BUDGET & QUANTITY SIZING PLANNER ── */}
       <div
         className="card border-0 shadow-sm rounded-4 p-3 p-md-4 mb-4"
-        style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', color: '#f8fafc' }}
+        style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', color: '#f8fafc', display: 'none' }}
       >
         <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3 pb-2 border-bottom border-secondary border-opacity-50">
           <div className="d-flex align-items-center gap-2">
