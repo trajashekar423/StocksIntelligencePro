@@ -2631,6 +2631,61 @@ export default function Stocks() {
         onRefresh={() => window.location.reload()}
       />
 
+      {/* ── TOP HEADER CONTROL BAR (LIVE STREAM, INTERVAL, CAPITAL BUDGET & DATA STATUS) ── */}
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 p-2.5 px-3 bg-light border rounded-3 mb-3 shadow-sm">
+        <div className="d-flex flex-wrap align-items-center gap-2 gap-sm-3">
+          <button
+            className={`btn btn-sm fw-bold px-3 ${
+              live ? 'btn-danger' : 'btn-success'
+            }`}
+            onClick={() => setLive((val) => !val)}
+          >
+            {live ? 'Pause Live' : 'Resume Live'}
+          </button>
+
+          <label className="small text-muted d-flex align-items-center gap-1.5 mb-0 fw-semibold">
+            <span>Interval</span>
+            <select
+              className="form-select form-select-sm bg-white border"
+              value={String(intervalMs)}
+              onChange={(e) => setIntervalMs(Number(e.target.value))}
+              style={{ width: 85 }}
+            >
+              <option value={5000}>5s</option>
+              <option value={10000}>10s</option>
+              <option value={30000}>30s</option>
+              <option value={60000}>60s</option>
+            </select>
+          </label>
+
+          <label className="small text-muted d-flex align-items-center gap-1.5 mb-0 fw-semibold">
+            <span>Capital</span>
+            <input
+              className="form-control form-control-sm bg-white border fw-bold text-dark"
+              min="0"
+              type="number"
+              value={capital}
+              onChange={(e) => setCapital(Number(e.target.value))}
+              style={{ width: 110 }}
+            />
+          </label>
+
+          <div className="d-flex align-items-center gap-2 small ms-sm-2">
+            <span className="text-muted fw-semibold">Gainers:</span>
+            <StatusChip ok={topStatus} />
+
+            <span className="text-muted fw-semibold ms-2">Volume:</span>
+            <StatusChip ok={mostStatus} />
+          </div>
+        </div>
+
+        <div className="text-end small ms-auto">
+          <span className="text-muted me-2">
+            {lastUpdated ? `Last Sync: ${getNSEDateTime(lastUpdated).shortTime} IST` : ''}
+          </span>
+        </div>
+      </div>
+
       {/* HEADER */}
 
       <div className="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
@@ -2640,148 +2695,32 @@ export default function Stocks() {
           </h3>
 
           <p className="text-muted mb-0 small">
-            NSE intraday scanner using
-            market data, volume, VWAP,
-            PDH, EMA, RSI and breakout
-            confirmation.
+            NSE intraday scanner using market data, volume, VWAP, PDH, EMA, RSI and breakout confirmation.
           </p>
         </div>
 
         <div className="text-end small">
           <div>
-            <strong>
-              {marketText}
-            </strong>
+            <strong>{marketText}</strong>
           </div>
 
           <div className="text-muted">
-            Universe:{' '}
-            {scanner.universeCount}{' '}
-            · Valid:{' '}
-            {scanner.validCount}{' '}
-            · Bullish:{' '}
-            {scanner.bullish.length}
+            Universe: {scanner.universeCount} · Valid: {scanner.validCount} · Bullish: {scanner.bullish.length}
           </div>
 
           <div className="text-muted">
-            Market score:{' '}
-            {scanner.marketScore}
-            /5 · Data:{' '}
-            {dataQuality.emoji}{' '}
-            {dataQuality.label}
-          </div>
-
-          <div className="text-muted">
-            {lastUpdated
-              ? `Last: ${getNSEDateTime(lastUpdated).shortTime} IST`
-              : ''}
+            Market score: {scanner.marketScore}/5 · Data: {dataQuality.emoji} {dataQuality.label}
           </div>
         </div>
       </div>
 
-      {/* CONTROLS */}
+      {/* CATEGORY TABS NAVIGATION */}
 
       <div className="d-flex flex-wrap align-items-center gap-3 mb-3">
         <TopIntraday
-          activeTab={
-            activeTab
-          }
-          onChange={
-            setActiveTab
-          }
+          activeTab={activeTab}
+          onChange={setActiveTab}
         />
-
-        <button
-          className={`btn btn-sm ${
-            live
-              ? 'btn-danger'
-              : 'btn-success'
-          }`}
-          onClick={() =>
-            setLive(
-              (value) =>
-                !value
-            )
-          }
-        >
-          {live
-            ? 'Pause Live'
-            : 'Resume Live'}
-        </button>
-
-        <label className="small text-muted d-flex align-items-center gap-2">
-          Interval
-
-          <select
-            className="form-select form-select-sm"
-            value={String(
-              intervalMs
-            )}
-            onChange={(event) =>
-              setIntervalMs(
-                Number(
-                  event.target
-                    .value
-                )
-              )
-            }
-            style={{ width: 'clamp(80px, 20vw, 110px)' }}
-          >
-            <option value={5000}>
-              5s
-            </option>
-
-            <option value={10000}>
-              10s
-            </option>
-
-            <option value={30000}>
-              30s
-            </option>
-
-            <option value={60000}>
-              60s
-            </option>
-          </select>
-        </label>
-
-        <label className="small text-muted d-flex align-items-center gap-2">
-          Capital
-
-          <input
-            className="form-control form-control-sm"
-            min="0"
-            type="number"
-            value={capital}
-            onChange={(event) =>
-              setCapital(
-                Number(
-                  event.target
-                    .value
-                )
-              )
-            }
-            style={{ width: 'clamp(90px, 25vw, 130px)' }}
-          />
-        </label>
-
-        <div className="d-flex align-items-center gap-2 small">
-          <span className="text-muted">
-            Gainers:
-          </span>
-
-          <StatusChip
-            ok={topStatus}
-          />
-
-          <span className="text-muted ms-2">
-            Volume:
-          </span>
-
-          <StatusChip
-            ok={mostStatus}
-          />
-        </div>
       </div>
 
       <div className={`st-tab-help st-tab-help--${activeTabHelp.tone}`}>
