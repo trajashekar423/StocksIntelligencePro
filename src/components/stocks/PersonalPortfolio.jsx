@@ -130,13 +130,13 @@ export default function PersonalPortfolio({ onQuickTrade = null }) {
         currentList.map(async (stk) => {
           const sym = SYMBOL_ALIASES[stk.symbol] || stk.symbol;
           try {
-            const res = await fetch(`/api/nse/quote-equity?symbol=${sym}`);
+            const res = await fetch(`/api/quote-equity?symbol=${sym}`);
             if (res.ok) {
               const data = await res.json();
-              const price = Number(data?.priceInfo?.lastPrice || data?.priceInfo?.close || stk.price);
-              const prev = Number(data?.priceInfo?.previousClose || stk.previousClose);
-              const high = Number(data?.priceInfo?.intraDayHighLow?.max || stk.dayHigh || price);
-              const low = Number(data?.priceInfo?.intraDayHighLow?.min || stk.dayLow || price);
+              const price = Number(data?.price || data?.lastPrice || data?.priceInfo?.lastPrice || data?.priceInfo?.close || stk.price);
+              const prev = Number(data?.previousClose || data?.priceInfo?.previousClose || stk.previousClose);
+              const high = Number(data?.high || data?.priceInfo?.intraDayHighLow?.max || stk.dayHigh || price);
+              const low = Number(data?.low || data?.priceInfo?.intraDayHighLow?.min || stk.dayLow || price);
               const comp = data?.info?.companyName || data?.metadata?.companyName || stk.companyName;
 
               const sl = stk.stopLoss || Number((low > 0 ? low : price * 0.985).toFixed(2));

@@ -36,7 +36,20 @@ export async function GET(req) {
         const chg = Number(d.dayChange || (prev ? price - prev : 0));
         const chgPct = Number(d.dayChangePerc || (prev ? (chg / prev) * 100 : 0));
 
+        const vwap = Number(((open + high + low + price) / 4).toFixed(2));
         const payload = {
+          price: price,
+          lastPrice: price,
+          ltp: price,
+          change: Number(chg.toFixed(2)),
+          pChange: Number(chgPct.toFixed(2)),
+          changePercent: Number(chgPct.toFixed(2)),
+          previousClose: prev,
+          open: open,
+          close: price,
+          high: high,
+          low: low,
+          vwap: vwap,
           info: { symbol, companyName: `${symbol} Limited`, activeSeries: ['EQ'] },
           priceInfo: {
             lastPrice: price,
@@ -46,7 +59,7 @@ export async function GET(req) {
             open,
             close: price,
             intraDayHighLow: { min: low, max: high },
-            vwap: Number(((open + high + low + price) / 4).toFixed(2)),
+            vwap: vwap,
           },
           metadata: { symbol, companyName: `${symbol} Limited` },
           source: 'LIVE_GROWW_STREAM',
@@ -80,20 +93,36 @@ export async function GET(req) {
         const chg = Number((ltp - prev).toFixed(2));
         const pChg = prev > 0 ? Number(((chg / prev) * 100).toFixed(2)) : 0;
         const compName = meta.shortName || meta.longName || `${symbol} Limited`;
+        const open = meta.regularMarketDayLow || ltp;
+        const high = meta.regularMarketDayHigh || ltp;
+        const low = meta.regularMarketDayLow || ltp;
+        const vwap = Number(((high + low + ltp) / 3).toFixed(2)) || ltp;
 
         const payload = {
+          price: ltp,
+          lastPrice: ltp,
+          ltp: ltp,
+          change: chg,
+          pChange: pChg,
+          changePercent: pChg,
+          previousClose: prev,
+          open: open,
+          close: ltp,
+          high: high,
+          low: low,
+          vwap: vwap,
           info: { symbol, companyName: compName, activeSeries: ['EQ'] },
           priceInfo: {
             lastPrice: ltp,
             change: chg,
             pChange: pChg,
             previousClose: prev,
-            open: meta.regularMarketDayLow || ltp,
+            open: open,
             close: ltp,
-            vwap: Number(((meta.regularMarketDayHigh + meta.regularMarketDayLow + ltp) / 3).toFixed(2)) || ltp,
+            vwap: vwap,
             intraDayHighLow: {
-              min: meta.regularMarketDayLow || ltp,
-              max: meta.regularMarketDayHigh || ltp,
+              min: low,
+              max: high,
             },
           },
           metadata: { symbol, companyName: compName },
@@ -113,6 +142,18 @@ export async function GET(req) {
   // 3. Fallback quote response
   return new Response(
     JSON.stringify({
+      price: 100,
+      lastPrice: 100,
+      ltp: 100,
+      change: 0,
+      pChange: 0,
+      changePercent: 0,
+      previousClose: 100,
+      open: 100,
+      close: 100,
+      high: 105,
+      low: 95,
+      vwap: 100,
       info: { symbol, companyName: `${symbol} Limited`, activeSeries: ['EQ'] },
       priceInfo: {
         lastPrice: 100,

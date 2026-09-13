@@ -2622,7 +2622,7 @@ export default function Stocks() {
      ========================================================== */
 
   return (
-    <div className="p-3">
+    <div className="stocks-view w-100 p-2 p-sm-3">
       {/* ── 0. MARKET SENTIMENT & EARLY-WARNING RADAR ── */}
       <MarketSentimentAlertBanner
         marketConfirmation={scanner.marketConfirmation}
@@ -2633,13 +2633,13 @@ export default function Stocks() {
 
       {/* HEADER */}
 
-      <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+      <div className="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
         <div>
-          <h3 className="mb-1">
+          <h3 className="mb-1 fs-5 fs-md-3">
             TOP 10 NSE INTRADAY STOCKS TODAY
           </h3>
 
-          <p className="text-muted mb-0">
+          <p className="text-muted mb-0 small">
             NSE intraday scanner using
             market data, volume, VWAP,
             PDH, EMA, RSI and breakout
@@ -2725,9 +2725,7 @@ export default function Stocks() {
                 )
               )
             }
-            style={{
-              width: 110,
-            }}
+            style={{ width: 'clamp(80px, 20vw, 110px)' }}
           >
             <option value={5000}>
               5s
@@ -2763,9 +2761,7 @@ export default function Stocks() {
                 )
               )
             }
-            style={{
-              width: 130,
-            }}
+            style={{ width: 'clamp(90px, 25vw, 130px)' }}
           />
         </label>
 
@@ -3052,7 +3048,7 @@ export default function Stocks() {
 
           {/* 🛡️ Safe Logic Decision Protocol Banner */}
           <div
-            className="card p-3 mb-4 rounded-3 border border-primary shadow-sm"
+            className="card pg-card w-100 p-3 mb-4 rounded-3 border border-primary shadow-sm"
             style={{ background: '#0f172a', color: '#f8fafc' }}
           >
             <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2 pb-2 border-bottom border-secondary border-opacity-50">

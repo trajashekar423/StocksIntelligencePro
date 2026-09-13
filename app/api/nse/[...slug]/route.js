@@ -156,6 +156,23 @@ function readLocalUniverse() {
   return null;
 }
 
+const SYMBOL_ALIASES = {
+  ADVIT: 'RAMBHAJO',
+  'ADVIT JEWELS': 'RAMBHAJO',
+  'ADVIT-JEWELS': 'RAMBHAJO',
+  'ADVITJEWELS': 'RAMBHAJO',
+  NICTO: 'NITCO',
+  INFOSYS: 'INFY',
+  'TATA MOTORS': 'TATAMOTORS',
+  'TATA STEEL': 'TATASTEEL',
+  'STATE BANK': 'SBIN',
+  'SBI': 'SBIN',
+  'HDFC': 'HDFCBANK',
+  'ICICI': 'ICICIBANK',
+  'RELIANCE IND': 'RELIANCE',
+  'RIL': 'RELIANCE',
+};
+
 function readLocalQuote(symbol) {
   if (!symbol) return null;
   try {
@@ -165,6 +182,139 @@ function readLocalQuote(symbol) {
     // ignore
   }
   return null;
+}
+
+async function resolveLiveMarketQuote(symbol) {
+  if (!symbol) return jsonResponse({ error: 'symbol query parameter is required' }, 400);
+  const normSym = symbol.trim().toUpperCase().replace(/^EQN:/, '').replace(/:.*$/, '');
+  const cleanSym = SYMBOL_ALIASES[normSym] || normSym;
+
+  // 1. Try Groww Accord API for real-time live tick data
+  try {
+    const liveUrl = `https://groww.in/v1/api/stocks_data/v1/accord_points/exchange/NSE/segment/CASH/latest_prices_ohlc/${encodeURIComponent(cleanSym)}`;
+    const liveRes = await fetch(liveUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', Accept: 'application/json' },
+      signal: AbortSignal.timeout(3000),
+    });
+    if (liveRes.ok) {
+      const d = await liveRes.json();
+      if (d && Number(d.ltp) > 0) {
+        const price = Number(d.ltp);
+        const prev = Number(d.close || d.previousClose || price);
+        const open = Number(d.open || price);
+        const high = Number(d.high || price);
+        const low = Number(d.low || price);
+        const chg = Number(d.dayChange || (prev ? price - prev : 0));
+        const chgPct = Number(d.dayChangePerc || (prev ? (chg / prev) * 100 : 0));
+        const vwap = Number(((open + high + low + price) / 4).toFixed(2));
+
+        return jsonResponse({
+          price,
+          lastPrice: price,
+          ltp: price,
+          change: Number(chg.toFixed(2)),
+          pChange: Number(chgPct.toFixed(2)),
+          changePercent: Number(chgPct.toFixed(2)),
+          previousClose: prev,
+          open,
+          close: price,
+          high,
+          low,
+          vwap,
+          info: { symbol: cleanSym, companyName: `${cleanSym} Limited`, activeSeries: ['EQ'], isFNOSec: true },
+          priceInfo: {
+            lastPrice: price,
+            change: Number(chg.toFixed(2)),
+            pChange: Number(chgPct.toFixed(2)),
+            previousClose: prev,
+            open,
+            close: price,
+            intraDayHighLow: { min: low, max: high },
+            vwap,
+          },
+          metadata: { symbol: cleanSym, companyName: `${cleanSym} Limited`, lastUpdateTime: new Date().toLocaleTimeString('en-IN') },
+          source: 'LIVE_GROWW_STREAM',
+        });
+      }
+    }
+  } catch {}
+
+  // 2. Try Yahoo Finance fallback
+  try {
+    const yfRes = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(cleanSym)}.NS?interval=1d&range=5d`,
+      {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+        signal: AbortSignal.timeout(4000),
+      }
+    );
+    if (yfRes.ok) {
+      const yfJson = await yfRes.json();
+      const meta = yfJson?.chart?.result?.[0]?.meta;
+      if (meta?.regularMarketPrice) {
+        const ltp = meta.regularMarketPrice;
+        const prev = meta.chartPreviousClose || meta.previousClose || ltp;
+        const chg = Number((ltp - prev).toFixed(2));
+        const pChg = prev > 0 ? Number(((chg / prev) * 100).toFixed(2)) : 0;
+        const compName = cleanSym === 'RAMBHAJO' ? 'Advit Jewels Limited' : (meta.shortName || meta.longName || `${cleanSym} Limited`);
+        const open = meta.regularMarketDayLow || ltp;
+        const high = meta.regularMarketDayHigh || ltp;
+        const low = meta.regularMarketDayLow || ltp;
+        const vwap = Number(((high + low + ltp) / 3).toFixed(2)) || ltp;
+
+        return jsonResponse({
+          price: ltp,
+          lastPrice: ltp,
+          ltp: ltp,
+          change: chg,
+          pChange: pChg,
+          changePercent: pChg,
+          previousClose: prev,
+          open,
+          close: ltp,
+          high,
+          low,
+          vwap,
+          info: { symbol: cleanSym, companyName: compName, activeSeries: ['EQ'] },
+          priceInfo: {
+            lastPrice: ltp,
+            change: chg,
+            pChange: pChg,
+            previousClose: prev,
+            open,
+            close: ltp,
+            vwap,
+            intraDayHighLow: { min: low, max: high },
+          },
+          metadata: { symbol: cleanSym, companyName: compName, lastUpdateTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) },
+          source: 'LIVE_YAHOO_STREAM',
+        });
+      }
+    }
+  } catch {}
+
+  // 3. Fallback
+  const data = readLocalQuote(cleanSym);
+  if (data) return jsonResponse(data, 200, { 'x-fallback': 'cached-quote' });
+
+  return jsonResponse({
+    price: 100,
+    lastPrice: 100,
+    ltp: 100,
+    change: 0,
+    pChange: 0,
+    changePercent: 0,
+    previousClose: 100,
+    open: 100,
+    close: 100,
+    high: 105,
+    low: 95,
+    vwap: 100,
+    info: { symbol: cleanSym, companyName: `${cleanSym} Limited`, activeSeries: ['EQ'] },
+    priceInfo: { lastPrice: 100, change: 0, pChange: 0, previousClose: 100, open: 100, close: 100, vwap: 100, intraDayHighLow: { min: 95, max: 105 } },
+    metadata: { symbol: cleanSym, companyName: `${cleanSym} Limited` },
+    source: 'FALLBACK',
+  });
 }
 
 export async function OPTIONS() {
@@ -180,23 +330,12 @@ export async function GET(req, context = {}) {
   const routeKey = slug.join('/');
   const url = new URL(req.url);
 
+  if (routeKey === 'quote-equity' || routeKey === 'get-quote') {
+    const symbol = url.searchParams.get('symbol') || slug[1] || '';
+    return await resolveLiveMarketQuote(symbol);
+  }
+
   let nsePath = ROUTES_MAP[routeKey];
-
-  if (!nsePath && routeKey === 'quote-equity') {
-    const symbol = url.searchParams.get('symbol');
-    const section = url.searchParams.get('section');
-    const q = new URLSearchParams();
-    if (symbol) q.set('symbol', symbol);
-    if (section) q.set('section', section);
-    nsePath = `/api/quote-equity?${q.toString()}`;
-  }
-
-  if (!nsePath && routeKey === 'get-quote') {
-    const symbol = url.searchParams.get('symbol');
-    if (symbol) {
-      nsePath = `/api/NextApi/apiClient/GetQuoteApi?functionName=getSymbolData&marketType=N&series=EQ&symbol=${encodeURIComponent(symbol)}`;
-    }
-  }
 
   if (!nsePath && routeKey === 'equity-stock-indices') {
     const index = url.searchParams.get('index') || 'NIFTY 500';

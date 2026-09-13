@@ -126,7 +126,7 @@ export async function fetchAllIndices() {
 export async function fetchStockQuote(symbol, section) {
   const params = new URLSearchParams({ symbol });
   if (section) params.set('section', section);
-  const endpoint = `/api/nse/quote-equity?${params.toString()}`;
+  const endpoint = `/api/quote-equity?${params.toString()}`;
   const res = await fetch(endpoint);
   const ct = (res.headers.get('content-type') || '').toLowerCase();
 
@@ -158,7 +158,7 @@ export async function fetchStockQuote(symbol, section) {
 
 export async function fetchNseGetQuote(symbol) {
   const params = new URLSearchParams({ symbol });
-  const endpoint = `/api/nse/get-quote?${params.toString()}`;
+  const endpoint = `/api/get-quote?${params.toString()}`;
   try {
     const res = await fetch(endpoint);
     const ct = (res.headers.get('content-type') || '').toLowerCase();
