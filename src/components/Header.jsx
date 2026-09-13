@@ -48,9 +48,9 @@ export default function Header() {
         <div className="d-flex align-items-center gap-2 gap-sm-3">
           <Link href="/stocks" className="d-flex align-items-center text-decoration-none">
             <img
+              className="dl-brand-logo"
               src="/stocks_intelligence_pro_logo.png"
               alt="Stocks Intelligence Pro"
-              style={{ height: '38px', width: 'auto', objectFit: 'contain' }}
               onError={(e) => {
                 e.target.src = '/logo.png';
               }}
