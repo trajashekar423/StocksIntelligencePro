@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FiChevronDown, FiLogOut, FiTrendingUp, FiZap, FiShield } from 'react-icons/fi';
+import { FiChevronDown, FiLogOut, FiTrendingUp, FiZap } from 'react-icons/fi';
 import useAuth from '../hooks/useAuth';
 import { getUser } from '../utils/authStorage';
 
@@ -42,23 +42,23 @@ export default function Header() {
   }, []);
 
   return (
-    <header className="dl-topbar shadow-sm border-bottom bg-white px-3 py-2">
+    <header className="dl-topbar shadow-sm border-bottom bg-white px-2 px-sm-3 py-2">
       <div className="d-flex align-items-center justify-content-between w-100 flex-wrap gap-2">
-        {/* Brand Logo & Title */}
-        <div className="d-flex align-items-center gap-3">
+        {/* Brand Logo & Desktop Navigation */}
+        <div className="d-flex align-items-center gap-2 gap-sm-3">
           <Link href="/stocks" className="d-flex align-items-center text-decoration-none">
             <img
               src="/stocks_intelligence_pro_logo.png"
               alt="Stocks Intelligence Pro"
-              style={{ height: '44px', width: 'auto', objectFit: 'contain' }}
+              style={{ height: '38px', width: 'auto', objectFit: 'contain' }}
               onError={(e) => {
                 e.target.src = '/logo.png';
               }}
             />
           </Link>
 
-          {/* Primary Navigation Pills */}
-          <nav className="d-none d-md-flex align-items-center gap-2 ms-3" aria-label="Primary navigation">
+          {/* Desktop Navigation Pills */}
+          <nav className="d-none d-md-flex align-items-center gap-2 ms-2" aria-label="Primary navigation">
             <Link
               href="/stocks"
               className={`btn btn-sm px-3 py-1.5 rounded-pill d-flex align-items-center gap-1.5 fw-bold transition-all ${
@@ -84,34 +84,34 @@ export default function Header() {
           </nav>
         </div>
 
-        {/* User Account Controls */}
-        <div className="d-flex align-items-center gap-2">
-          <div className="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1.5 d-flex align-items-center gap-1 fw-bold">
-            <span className="spinner-grow spinner-grow-sm text-success" role="status" style={{ width: 8, height: 8 }}></span>
-            <span>Quant Engine Active</span>
+        {/* User Account Controls & Engine Badge */}
+        <div className="d-flex align-items-center gap-1.5 gap-sm-2">
+          <div className="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1.5 d-flex align-items-center gap-1 fw-bold" style={{ fontSize: '0.72rem' }}>
+            <span className="spinner-grow spinner-grow-sm text-success" role="status" style={{ width: 6, height: 6 }}></span>
+            <span>Quant Active</span>
           </div>
 
           {user && (
-            <div className="position-relative ms-2" ref={profileRef}>
+            <div className="position-relative ms-1" ref={profileRef}>
               <button
                 type="button"
-                className="btn btn-light btn-sm rounded-pill d-flex align-items-center gap-2 border px-2.5 py-1"
+                className="btn btn-light btn-sm rounded-pill d-flex align-items-center gap-1.5 border px-2 py-1"
                 onClick={() => setMenuOpen((prev) => !prev)}
               >
                 <div
                   className="rounded-circle bg-primary text-white fw-bold d-flex align-items-center justify-content-center"
-                  style={{ width: 28, height: 28, fontSize: '0.75rem' }}
+                  style={{ width: 26, height: 26, fontSize: '0.7rem' }}
                 >
                   {getInitials(userName)}
                 </div>
                 <span className="d-none d-sm-inline fw-semibold small text-dark">{userName}</span>
-                <FiChevronDown size={14} className="text-muted" />
+                <FiChevronDown size={13} className="text-muted" />
               </button>
 
               {menuOpen && (
                 <div
                   className="position-absolute end-0 mt-2 bg-white rounded-3 shadow-lg border p-2 z-3"
-                  style={{ width: 200 }}
+                  style={{ width: 190 }}
                 >
                   <div className="px-3 py-2 border-bottom mb-1">
                     <p className="fw-bold mb-0 text-dark small">{userName}</p>
@@ -129,6 +129,34 @@ export default function Header() {
               )}
             </div>
           )}
+        </div>
+
+        {/* Mobile Touch Bar */}
+        <div className="d-flex d-md-none align-items-center gap-2 w-100 pt-1 border-top mt-1">
+          <Link
+            href="/stocks"
+            className={`btn btn-xs flex-fill rounded-pill py-1.5 d-flex align-items-center justify-content-center gap-1 fw-bold ${
+              pathname.startsWith('/stocks')
+                ? 'btn-primary text-white shadow-sm'
+                : 'btn-light text-secondary border'
+            }`}
+            style={{ fontSize: '0.78rem' }}
+          >
+            <FiTrendingUp size={14} />
+            <span>Stocks Pro</span>
+          </Link>
+          <Link
+            href="/trading"
+            className={`btn btn-xs flex-fill rounded-pill py-1.5 d-flex align-items-center justify-content-center gap-1 fw-bold ${
+              pathname.startsWith('/trading')
+                ? 'btn-success text-white shadow-sm'
+                : 'btn-light text-success border border-success-subtle'
+            }`}
+            style={{ fontSize: '0.78rem' }}
+          >
+            <FiZap size={14} />
+            <span>Groww Trading</span>
+          </Link>
         </div>
       </div>
     </header>
