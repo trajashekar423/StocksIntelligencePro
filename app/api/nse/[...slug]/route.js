@@ -325,15 +325,18 @@ export async function OPTIONS() {
 }
 
 export async function GET(req, context = {}) {
-  const resolvedParams = await context?.params;
-  const slug = Array.isArray(resolvedParams?.slug) ? resolvedParams.slug : [];
-  const routeKey = slug.join('/');
-  const url = new URL(req.url);
+  try {
+    const resolvedParams = await context?.params;
+    const slug = Array.isArray(resolvedParams?.slug) ? resolvedParams.slug : [];
+    const routeKey = slug.join('/');
+    const url = new URL(req.url);
 
-  if (routeKey === 'quote-equity' || routeKey === 'get-quote') {
-    const symbol = url.searchParams.get('symbol') || slug[1] || '';
-    return await resolveLiveMarketQuote(symbol);
-  }
+    if (routeKey === 'quote-equity' || routeKey === 'get-quote' || routeKey === 'quote' || routeKey.startsWith('quote/')) {
+      const symbol = url.searchParams.get('symbol') || slug[1] || (slug[0] !== 'quote' ? slug[0] : '') || '';
+      if (symbol) {
+        return await resolveLiveMarketQuote(symbol);
+      }
+    }
 
   let nsePath = ROUTES_MAP[routeKey];
 
@@ -396,9 +399,8 @@ export async function GET(req, context = {}) {
     return jsonResponse({ error: 'Unknown NSE proxy route', path: routeKey }, 404);
   }
 
-  try {
-    const upstream = await fetchNse(nsePath);
-    const contentType = upstream.headers.get('content-type') || 'application/json; charset=utf-8';
+  const upstream = await fetchNse(nsePath);
+  const contentType = upstream.headers.get('content-type') || 'application/json; charset=utf-8';
 
     // Fallbacks when NSE is blocked / market closed
     if ((upstream.status === 403 || upstream.status === 404) && routeKey === 'universe') {
