@@ -16,6 +16,17 @@ export interface PreTradeCheckParams {
   quantity: number;
   config: TradingConfig;
   bypassMarketHoursForPaper?: boolean;
+  /**
+   * Bullish score (0–100) for the setup, used by the Conviction Oversize Guard.
+   * High-conviction trades (score ≥ 92) must still obey the same risk-per-trade cap.
+   * Institutional principle: every trade is ONE sample in a probability distribution.
+   */
+  bullishScore?: number;
+  /**
+   * Requested risk % per trade. If provided and exceeds the conviction cap, it is blocked.
+   * Defaults to config.riskPerTradePct if not provided.
+   */
+  requestedRiskPerTradePct?: number;
 }
 
 export function validatePreTrade(params: PreTradeCheckParams): RiskCheckResult {
@@ -28,7 +39,10 @@ export function validatePreTrade(params: PreTradeCheckParams): RiskCheckResult {
     quantity,
     config,
     bypassMarketHoursForPaper = true,
+    bullishScore,
+    requestedRiskPerTradePct,
   } = params;
+
 
   const store = getStore();
   const cleanSymbol = symbol.trim().toUpperCase();
@@ -138,6 +152,32 @@ export function validatePreTrade(params: PreTradeCheckParams): RiskCheckResult {
       code: 'POOR_RISK_REWARD',
       reason: `Risk/Reward ratio (${rr.toFixed(2)}) is below the required 1.20 minimum threshold.`,
     };
+  }
+
+  // 12. Conviction Oversize Guard
+  //
+  // Institutional Principle (Video Chapter: "The Psychological Trap of High Conviction"):
+  //   A high bullish score does NOT mean the trade will win.
+  //   Every trade is ONE sample from a probability distribution.
+  //   Oversizing because "this one is a sure thing" is the #1 psychological trap.
+  //
+  //   Rule: Even a maximum-conviction trade (score = 100) cannot exceed
+  //   1.5× the normal risk-per-trade cap. Period.
+  {
+    const effectiveRiskPct = requestedRiskPerTradePct ?? config.riskPerTradePct;
+    const maxAllowedRiskPct = config.riskPerTradePct * 1.5; // Hard institutional cap
+
+    if (effectiveRiskPct > maxAllowedRiskPct) {
+      const convictionNote =
+        bullishScore !== undefined && bullishScore >= 90
+          ? ` Even with a high conviction score of ${bullishScore}/100, risk sizing limits must be obeyed — high conviction is a psychological feeling, not a statistical guarantee.`
+          : '';
+      return {
+        allowed: false,
+        code: 'CONVICTION_OVERSIZE_BLOCKED',
+        reason: `Requested risk of ${effectiveRiskPct.toFixed(2)}% per trade exceeds the maximum allowed ${maxAllowedRiskPct.toFixed(2)}% (1.5× the base ${config.riskPerTradePct}% cap).${convictionNote}`,
+      };
+    }
   }
 
   return {

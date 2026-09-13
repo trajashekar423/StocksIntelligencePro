@@ -51,6 +51,10 @@ export interface RawStockCandidate {
   upperCircuit?: number;
   lowerCircuit?: number;
   isHalted?: boolean;
+  // Live News Sentiment (optional — injected from news API)
+  newsSentimentScore?: number;  // -1.0 to +1.0 from newsSentimentEngine
+  newsSentiment?: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
+  newsHeadline?: string;
 }
 
 export interface EvaluatedCandidate {
@@ -61,6 +65,7 @@ export interface EvaluatedCandidate {
   marketScore: number;         // 0 - 100 (Indian Market Score)
   globalScore: number;         // 0 - 100 (Global Macro Score)
   technicalScore: number;      // 0 - 100 (Stock Technical Score)
+  newsScore: number;           // 0 - 100 (Live News Sentiment Score)
   volumeScore: number;         // 0 - 100 (Liquidity & Volume Score)
   riskScore: number;           // 0 - 100 (Risk Safety Score)
 
@@ -426,10 +431,25 @@ export function runConfluenceQuantScan(
       ? indiaResult.marketScore
       : 100 - indiaResult.marketScore;
 
+    // Calculate News Sentiment Score (0 - 100)
+    // For Long: Positive sentiment (+1.0) → 100, Negative (-1.0) → 0
+    // For Short: Negative sentiment (-1.0) → 100, Positive (+1.0) → 0
+    let newsScore = 50; // default neutral
+    if (stock.newsSentimentScore !== undefined && stock.newsSentimentScore !== null) {
+      const rawSentiment = stock.newsSentimentScore;
+      if (isPotentiallyLong) {
+        newsScore = Math.round(((rawSentiment + 1) / 2) * 100);
+      } else {
+        newsScore = 100 - Math.round(((rawSentiment + 1) / 2) * 100);
+      }
+      newsScore = Math.max(0, Math.min(100, newsScore));
+    }
+
     const rawFinalScore =
       (effectiveGlobalScore * w.GLOBAL_MARKET) +
       (effectiveIndianScore * w.INDIAN_MARKET) +
       (techResult.score * w.STOCK_TECHNICAL) +
+      (newsScore * (w.NEWS_SENTIMENT || 0.15)) +
       (volumeScore * w.LIQUIDITY_VOLUME) +
       (riskScore * w.RISK_FILTER) +
       sectorAdj.adjustmentScore;
@@ -510,6 +530,13 @@ export function runConfluenceQuantScan(
     if (riskRewardRatio >= 2.0) {
       allReasons.push(`Favorable Risk:Reward ratio (${riskRewardRatio}:1)`);
     }
+    if (stock.newsHeadline) {
+      allReasons.push(`📰 News: ${stock.newsHeadline}`);
+    } else if (stock.newsSentiment === 'POSITIVE' && isPotentiallyLong) {
+      allReasons.push('📰 Positive live news sentiment tailwind');
+    } else if (stock.newsSentiment === 'NEGATIVE' && !isPotentiallyLong) {
+      allReasons.push('📰 Negative live news catalyst supporting short setup');
+    }
 
     const allWarnings = [...techResult.warnings, ...filterFailures];
     if (indiaResult.regime === 'BEAR' && isPotentiallyLong) {
@@ -517,6 +544,11 @@ export function runConfluenceQuantScan(
     }
     if (!sectorAdj.isTailwind) {
       allWarnings.push(sectorAdj.reason);
+    }
+    if (stock.newsSentiment === 'NEGATIVE' && isPotentiallyLong) {
+      allWarnings.push('⚠️ Negative live news sentiment creates headwind for long setup');
+    } else if (stock.newsSentiment === 'POSITIVE' && !isPotentiallyLong) {
+      allWarnings.push('⚠️ Positive live news sentiment creates risk for short setup');
     }
 
     evaluatedList.push({
@@ -527,6 +559,7 @@ export function runConfluenceQuantScan(
       marketScore: indiaResult.marketScore,
       globalScore: globalResult.globalScore,
       technicalScore: techResult.score,
+      newsScore,
       volumeScore,
       riskScore,
       vwap,

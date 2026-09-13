@@ -154,8 +154,8 @@ export function evaluateOverboughtStatus({
 
   const isExtremeRSI = rsiVal >= 78;
   const isModerateRSI = rsiVal >= 70;
-  const isSevereVwapStretch = vwapDeviationPct >= 2.8;
-  const isModerateVwapStretch = vwapDeviationPct >= 1.8;
+  const isSevereVwapStretch = vwapDeviationPct >= 4.0;
+  const isModerateVwapStretch = vwapDeviationPct >= 2.0;
 
   if (hasUpperWickRejection && (isModerateRSI || isModerateVwapStretch)) {
     level = 'BEARISH_REVERSAL_EXIT';
@@ -163,7 +163,7 @@ export function evaluateOverboughtStatus({
     badgeColor = 'danger';
     badgeText = '🚨 BEARISH REVERSAL (UPPER WICK)';
     actionAdvice = '🚨 FULL EXIT 100% IMMEDIATELY: Severe buyer rejection / shooting star at top. High risk of sudden dump.';
-  } else if (isExtremeRSI || isSevereVwapStretch || (isModerateRSI && isLateDaySession)) {
+  } else if (isExtremeRSI || isSevereVwapStretch || (isModerateRSI && vwapDeviationPct >= 2.8) || (isModerateRSI && isLateDaySession)) {
     level = 'OVERBOUGHT_CRITICAL';
     isOverbought = true;
     badgeColor = 'danger';

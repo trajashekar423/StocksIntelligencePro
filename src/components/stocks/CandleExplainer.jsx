@@ -173,6 +173,13 @@ export default function CandleExplainer({
             >
               🐂 12 Bullish Patterns
             </button>
+            <button
+              type="button"
+              className={`btn btn-sm rounded-2 fw-semibold ${activeTab === '2-candle-gate' ? 'btn-success text-white shadow-sm' : 'btn-dark text-light'}`}
+              onClick={() => setActiveTab('2-candle-gate')}
+            >
+              🛡️ 2-Candle Gate Rules
+            </button>
           </div>
         </div>
 
@@ -532,6 +539,107 @@ export default function CandleExplainer({
                       </ul>
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── TAB 4: 🛡️ 2-CANDLE CONFIRMATION GATE & TRANSITION RULES ── */}
+            {activeTab === '2-candle-gate' && (
+              <div className="p-3 p-md-4">
+                <div className="alert alert-success border-success bg-success bg-opacity-10 rounded-4 mb-4">
+                  <div className="d-flex align-items-center gap-2 mb-2">
+                    <span className="fs-4">🛡️</span>
+                    <h5 className="mb-0 fw-bold text-success">
+                      Continuous All-Day Next-Candle Predictive Engine ({currentStock?.symbol || 'STOCK'})
+                    </h5>
+                  </div>
+                  <p className="mb-0 small text-dark">
+                    Runs continuously across the entire session from <strong>9:15 AM to 3:30 PM IST</strong>! For every completed candle $C_n$, the engine evaluates body size, upper/lower wicks, volume, and VWAP position to generate a high-probability forecast for what <strong>the very next incoming candle $C_{n+1}$ will do</strong>.
+                  </p>
+                </div>
+
+                {/* What is Stalling Explanation Box */}
+                <div className="card border-warning border-2 shadow-sm rounded-4 mb-4 bg-warning bg-opacity-10">
+                  <div className="card-body p-3">
+                    <div className="d-flex align-items-center gap-2 mb-1">
+                      <span className="badge bg-warning text-dark fw-bold px-3 py-1.5 fs-6">⚠️ WHAT IS STALLING?</span>
+                      <strong className="text-dark">Plain-English Trading Definition</strong>
+                    </div>
+                    <p className="small text-dark mb-0">
+                      <strong>Stalling</strong> means <strong>buyers have paused and lost momentum</strong>. Buyers tried to push the stock up in Candle 1, but in Candle 2, the price <strong>could NOT break higher than Candle 1's High</strong> (or closed red/flat).
+                      <br />
+                      💡 <strong>Golden Rule:</strong> When you see <code>⚠️ STALLING</code>, <strong>DO NOT BUY YET!</strong> Wait until a new candle cleanly breaks above the high before entering.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 3 Transition Rules Grid */}
+                <h6 className="fw-bold mb-3 text-dark">📊 The 3 Rules of Candle 1 → Candle 2 Transition:</h6>
+                <div className="row g-3 mb-4">
+                  {/* Rule 1 Card */}
+                  <div className="col-12 col-md-4">
+                    <div className="card h-100 border-success shadow-sm rounded-3 bg-white p-3">
+                      <div className="d-flex align-items-center justify-content-between mb-2">
+                        <span className="badge bg-success px-2.5 py-1.5 fs-7">🟢 Rule 1</span>
+                        <small className="fw-bold text-success">High Probability Bullish</small>
+                      </div>
+                      <h6 className="fw-bold text-dark mb-1">Strong Green Body (Low Wicks)</h6>
+                      <p className="small text-muted mb-2">
+                        Buyers dominated Candle 1 from Open to Close without seller pushback.
+                      </p>
+                      <div className="bg-light p-2 rounded-2 border border-success border-opacity-25 small">
+                        <strong>Action:</strong> Expect Candle 2 to open green & continue upward. Enter on Candle 2 high breakout!
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Rule 2 Card */}
+                  <div className="col-12 col-md-4">
+                    <div className="card h-100 border-danger shadow-sm rounded-3 bg-white p-3">
+                      <div className="d-flex align-items-center justify-content-between mb-2">
+                        <span className="badge bg-danger px-2.5 py-1.5 fs-7">🚨 Rule 2</span>
+                        <small className="fw-bold text-danger">Reversal Warning</small>
+                      </div>
+                      <h6 className="fw-bold text-dark mb-1">Long Upper Wick (Spike & Drop)</h6>
+                      <p className="small text-muted mb-2">
+                        Price spiked up, but heavy institutional selling offloaded at peak (e.g., SMSPHARMA ₹470.41 rejection).
+                      </p>
+                      <div className="bg-light p-2 rounded-2 border border-danger border-opacity-25 small">
+                        <strong>Action:</strong> High probability Candle 2 turns RED or pulls back. Lock profits immediately!
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Rule 3 Card */}
+                  <div className="col-12 col-md-4">
+                    <div className="card h-100 border-warning shadow-sm rounded-3 bg-white p-3">
+                      <div className="d-flex align-items-center justify-content-between mb-2">
+                        <span className="badge bg-warning text-dark px-2.5 py-1.5 fs-7">⚠️ Rule 3</span>
+                        <small className="fw-bold text-warning">Equilibrium State</small>
+                      </div>
+                      <h6 className="fw-bold text-dark mb-1">Small Body Near VWAP / EMA 9</h6>
+                      <p className="small text-muted mb-2">
+                        Candle 1 formed a small spinning top / doji body with low volume near VWAP support.
+                      </p>
+                      <div className="bg-light p-2 rounded-2 border border-warning border-opacity-25 small">
+                        <strong>Action:</strong> Wait for Candle 2 volume surge breakout above EMA 9 before taking a position.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SMSPHARMA ₹470.41 Case Study Banner */}
+                <div className="p-3 bg-dark text-white rounded-4 border border-secondary">
+                  <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                    <div className="d-flex align-items-center gap-2">
+                      <span className="badge bg-danger fs-6 px-3 py-1.5 fw-bold">📍 Real Market Case Study</span>
+                      <strong className="text-warning fs-6">SMSPHARMA (Upper Wick Rejection at ₹470.41)</strong>
+                    </div>
+                    <span className="badge bg-outline-light border text-light">Overbought Guard Active</span>
+                  </div>
+                  <p className="small text-light opacity-75 mb-0">
+                    On SMSPHARMA, Candle 1 was a strong green candle. Candle 2 spiked to <strong>₹470.41</strong>, but sellers heavily offloaded, creating a <strong>tall upper wick rejection</strong> that closed price back down at <strong>₹463.45</strong>. The system automatically triggered <strong><code>CRITICAL OVERBOUGHT</code></strong> and advised an immediate profit-locking exit!
+                  </p>
                 </div>
               </div>
             )}

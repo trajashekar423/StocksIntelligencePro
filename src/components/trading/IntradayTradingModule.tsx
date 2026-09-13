@@ -22,6 +22,8 @@ import { GrowwAuthStatus } from '@/src/types/groww';
 import StockDetailModal from '@/src/components/stocks/StockDetailModal.jsx';
 import LivePositionRiskMonitor from './LivePositionRiskMonitor';
 import { registerNewOpenPosition } from '@/src/services/risk/positionTracker';
+import { calculateExpectancy } from '@/src/services/risk/tradeExpectancyEngine';
+import { calculateDrawdownRecovery } from '@/src/lib/trading/positionSizer';
 
 const formatMsg = (val: any, fallback = 'Operation failed.'): string => {
   if (!val) return fallback;
@@ -55,8 +57,11 @@ export default function IntradayTradingModule() {
   const [executingOrder, setExecutingOrder] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [showLiveConfirmModal, setShowLiveConfirmModal] = useState(false);
+  const [showGrowwModal, setShowGrowwModal] = useState(false);
   const [customQuantity, setCustomQuantity] = useState<number | ''>('');
   const [activeTab, setActiveTab] = useState<'scanner' | 'positions' | 'logs' | 'settings'>('scanner');
+  const [autoPilot, setAutoPilot] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   // Load Status & Positions
   const loadStatus = useCallback(async () => {
@@ -98,6 +103,7 @@ export default function IntradayTradingModule() {
 
   // Initial load and polling intervals
   useEffect(() => {
+    setMounted(true);
     loadStatus();
     loadScanner();
 
@@ -126,6 +132,79 @@ export default function IntradayTradingModule() {
       .then((data) => setSignal(data))
       .catch(() => setSignal(null));
   }, [selectedStock]);
+
+  // ── 🤖 AI Pure Auto-Pilot Execution Engine ─────────────────────────────────
+  useEffect(() => {
+    if (!autoPilot || executingOrder || !config?.enabled || stocks.length === 0) return;
+
+    // Find top-ranked high-conviction candidate setup (Score >= 80, Above VWAP, R:R >= 2:1)
+    const topCandidate = stocks.find(
+      (s) =>
+        s.score >= 80 &&
+        s.aboveVwap &&
+        (s.riskRewardRatio ? s.riskRewardRatio >= 2 : true) &&
+        !positions.some((p) => p.symbol === s.symbol)
+    );
+
+    if (topCandidate) {
+      setExecutingOrder(true);
+      setSelectedStock(topCandidate);
+      const orderQty = topCandidate.suggestedQty || 10;
+
+      setActionMessage({
+        type: 'info',
+        text: `🤖 AI Auto-Pilot: High-conviction setup detected for ${topCandidate.symbol} (Score: ${topCandidate.score}/100, Above VWAP). Auto-executing order...`,
+      });
+
+      fetch('/api/trading/buy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbol: topCandidate.symbol,
+          entryPrice: topCandidate.ltp,
+          stopLoss: topCandidate.stopLoss,
+          target: topCandidate.target,
+          quantity: orderQty,
+        }),
+      })
+        .then((r) => r.json())
+        .then((res) => {
+          if (res.success) {
+            try {
+              registerNewOpenPosition(
+                topCandidate.symbol,
+                topCandidate.companyName,
+                orderQty,
+                topCandidate.ltp,
+                topCandidate.stopLoss,
+                'MIS'
+              );
+            } catch {
+              // ignore
+            }
+            setActionMessage({
+              type: 'success',
+              text: `🤖 AI Auto-Pilot Success: Auto-Executed BUY for ${topCandidate.symbol} @ ₹${topCandidate.ltp}! SL: ₹${topCandidate.stopLoss}, Target: ₹${topCandidate.target}`,
+            });
+            loadStatus();
+          } else {
+            setActionMessage({
+              type: 'error',
+              text: formatMsg(res?.error, `AI Auto-Pilot order for ${topCandidate.symbol} blocked by risk management.`),
+            });
+          }
+        })
+        .catch((err) => {
+          setActionMessage({
+            type: 'error',
+            text: formatMsg(err, `Network error executing Auto-Pilot for ${topCandidate.symbol}.`),
+          });
+        })
+        .finally(() => {
+          setExecutingOrder(false);
+        });
+    }
+  }, [autoPilot, executingOrder, config?.enabled, stocks, positions, loadStatus]);
 
   // Execute Buy Order
   const handleBuyOrder = async () => {
@@ -294,6 +373,34 @@ export default function IntradayTradingModule() {
 
   const isLive = config?.mode === 'LIVE';
 
+  // ── Video Logic: Expectancy computed from closed trades ──────────────────
+  const expectancyReport = useMemo(() => {
+    if (!closedTrades || closedTrades.length === 0) return null;
+    const mapped = closedTrades.map((t: any) => ({
+      id: t.id || String(Math.random()),
+      realizedPnL: Number(t.realizedPnL ?? t.pnl ?? 0),
+      riskAmount: Math.abs(
+        (Number(t.entryPrice ?? 0) - Number(t.stopLoss ?? 0)) *
+        Number(t.quantity ?? 1)
+      ) || Math.abs(Number(t.realizedPnL ?? 0)) * 0.5,
+    }));
+    return calculateExpectancy(mapped);
+  }, [closedTrades]);
+
+  // ── Video Logic: Drawdown recovery from today's realized losses ──────────
+  const drawdownRecovery = useMemo(() => {
+    const capital = config?.capital || 50000;
+    const realizedPnL = Number(stats?.realizedPnL ?? 0);
+    if (realizedPnL >= 0) return null;
+    const drawdownPct = (Math.abs(realizedPnL) / capital) * 100;
+    if (drawdownPct < 1) return null;
+    return calculateDrawdownRecovery(
+      drawdownPct,
+      capital,
+      expectancyReport?.expectancyPerTrade ?? null
+    );
+  }, [stats?.realizedPnL, config?.capital, expectancyReport]);
+
   return (
     <div className="container-fluid px-0">
       {/* ── TOP HEADER: Status & Kill Switch ── */}
@@ -324,8 +431,8 @@ export default function IntradayTradingModule() {
                     NSE {marketStatus?.status || (marketStatus?.isMarketOpen ? 'OPEN' : 'CLOSED')}
                   </span>
                 </div>
-                <div className="small text-muted">
-                  IST Time: {marketStatus?.istTime || new Date().toLocaleTimeString()} · Real-time Technical Scoring & Execution
+                <div className="small text-muted" suppressHydrationWarning>
+                  IST Time: {marketStatus?.istTime || (mounted ? new Date().toLocaleTimeString() : '--:--:--')} · Real-time Technical Scoring & Execution
                 </div>
               </div>
             </div>
@@ -333,26 +440,51 @@ export default function IntradayTradingModule() {
             {/* Mode Indicator & Kill Switch */}
             <div className="d-flex flex-wrap align-items-center gap-2">
               {/* Groww Connection Badge */}
-              <div
-                className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 border bg-light small"
-                title={`Groww Connection Status: ${growwAuth?.status || 'CHECKING'}`}
+              <button
+                type="button"
+                className="btn btn-sm border bg-light d-flex align-items-center gap-2 px-3 py-2 rounded-3 text-dark fw-semibold"
+                onClick={() => setShowGrowwModal(true)}
+                title="Click to view Groww API Connection & Setup Guide"
               >
                 <div
                   className={`rounded-circle ${growwAuth?.authenticated ? 'bg-success' : 'bg-warning'}`}
                   style={{ width: 10, height: 10 }}
                 />
-                <span className="fw-semibold">
+                <span>
                   Groww: {growwAuth?.authenticated ? 'Connected' : 'Disconnected / Paper'}
                 </span>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-link p-0 text-muted ms-1"
-                  onClick={() => loadStatus()}
-                  title="Refresh Connection"
-                >
-                  <FiRefreshCw size={12} />
-                </button>
-              </div>
+                <span className="badge bg-secondary-subtle text-secondary ms-1">⚙️ Setup</span>
+              </button>
+
+              {/* 🤖 AI Pure Auto-Pilot Toggle Button */}
+              <button
+                type="button"
+                className={`btn btn-sm fw-bold d-flex align-items-center gap-2 px-3 py-2 rounded-3 transition-all ${
+                  autoPilot
+                    ? 'btn-success text-white shadow-sm border-0'
+                    : 'btn-outline-secondary'
+                }`}
+                onClick={() => {
+                  const next = !autoPilot;
+                  setAutoPilot(next);
+                  setActionMessage({
+                    type: next ? 'success' : 'info',
+                    text: next
+                      ? '🤖 AI Pure Auto-Pilot ACTIVATED! Auto-scanning and auto-executing entries for stocks with Score ≥ 80, Above VWAP, R:R ≥ 2:1 & Safe Exit.'
+                      : '🤖 AI Pure Auto-Pilot DEACTIVATED. Switched to manual execution.',
+                  });
+                }}
+                title={
+                  autoPilot
+                    ? 'AI Auto-Pilot is Active (Automated Entry & Exit Engine Running)'
+                    : 'Click to Enable Pure AI Automation (Auto-Entry & Auto-Exit)'
+                }
+              >
+                <span>🤖 AI AUTO-PILOT:</span>
+                <span className={`badge ${autoPilot ? 'bg-light text-success fw-extrabold' : 'bg-secondary text-white'}`}>
+                  {autoPilot ? 'ACTIVE ON' : 'OFF'}
+                </span>
+              </button>
 
               {/* Mode Selector */}
               <div className="btn-group btn-group-sm p-1 rounded-3 bg-light border">
@@ -455,7 +587,14 @@ export default function IntradayTradingModule() {
               {Number(stats?.realizedPnL || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </div>
             <small className="text-muted">
-              {stats?.tradesToday || 0} Trades ({stats?.winRate || 0}% Win Rate)
+              {stats?.tradesToday || 0} Trades ·{' '}
+              {expectancyReport && expectancyReport.totalTrades >= 3 ? (
+                <span className={expectancyReport.expectancyPerTrade >= 0 ? 'text-success fw-semibold' : 'text-danger fw-semibold'}>
+                  E: {expectancyReport.expectancyPerTrade >= 0 ? '+' : ''}₹{expectancyReport.expectancyPerTrade}/trade
+                </span>
+              ) : (
+                <span>{stats?.winRate || 0}% Win Rate</span>
+              )}
             </small>
           </div>
         </div>
@@ -700,7 +839,42 @@ export default function IntradayTradingModule() {
                     </div>
                   </div>
 
-                  {/* 1-Click Buy Action */}
+                  {/* ── CONVICTION OVERSIZE GUARD (Video Logic Gap 4) ─────────── */}
+                  {selectedStock && selectedStock.bullishScore >= 90 && (
+                    <div className="alert alert-warning py-2 px-3 small mb-2 rounded-3 border-warning border-opacity-75">
+                      <strong>⚠️ High Conviction ({selectedStock.bullishScore}/100)</strong>
+                      <div className="mt-1 text-muted" style={{ fontSize: '0.78rem' }}>
+                        High conviction is a psychological feeling, not a statistical guarantee.
+                        Every trade is one sample in a probability distribution.
+                        Risk sizing stays fixed at <strong>{config?.riskPerTradePct || 1}%</strong> regardless of score.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── DRAWDOWN RECOVERY ALERT (Video Logic Gap 2) ──────────── */}
+                  {drawdownRecovery && (
+                    <div
+                      className={`alert py-2 px-3 small mb-2 rounded-3 ${
+                        drawdownRecovery.riskLevel === 'CRITICAL'
+                          ? 'alert-danger'
+                          : drawdownRecovery.riskLevel === 'SEVERE'
+                          ? 'alert-warning'
+                          : 'alert-info'
+                      }`}
+                    >
+                      <strong>
+                        {drawdownRecovery.riskLevel === 'CRITICAL' ? '🚨' : '⚠️'} Today&apos;s Loss:{' '}
+                        {drawdownRecovery.drawdownPct.toFixed(1)}% down
+                      </strong>
+                      <div className="mt-1" style={{ fontSize: '0.78rem' }}>
+                        Needs <strong>{drawdownRecovery.recoveryRequiredPct.toFixed(1)}% gain</strong> to recover.
+                        {drawdownRecovery.tradesToRecover &&
+                          ` ~${drawdownRecovery.tradesToRecover} trades at current expectancy.`}
+                      </div>
+                    </div>
+                  )}
+
+
                   <button
                     type="button"
                     className={`btn w-100 py-2 fw-bold text-white rounded-pill shadow-sm mb-2 ${isLive ? 'btn-danger' : 'btn-success'}`}
@@ -877,6 +1051,88 @@ export default function IntradayTradingModule() {
           </div>
         </div>
       </div>
+
+      {/* ── GROWW API CONNECTION & SETUP MODAL ── */}
+      {showGrowwModal && (
+        <div className="modal show d-block" tabIndex={-1} style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-content rounded-4 shadow border-0">
+              <div className="modal-header text-white" style={{ background: 'linear-gradient(135deg, #00d09c, #00b386)' }}>
+                <div className="d-flex align-items-center gap-2">
+                  <div className="bg-white text-success rounded-circle d-flex align-items-center justify-content-center fw-extrabold" style={{ width: 32, height: 32 }}>G</div>
+                  <h5 className="modal-title fw-bold mb-0">Groww API Integration & Automated Trading Guide</h5>
+                </div>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setShowGrowwModal(false)} />
+              </div>
+              <div className="modal-body p-4">
+                <div className="row g-3 mb-3">
+                  <div className="col-md-6">
+                    <div className="p-3 bg-light rounded-3 border h-100">
+                      <h6 className="fw-bold text-dark d-flex align-items-center gap-2">
+                        <span className={`badge ${growwAuth?.authenticated ? 'bg-success' : 'bg-warning text-dark'}`}>
+                          {growwAuth?.authenticated ? 'CONNECTED' : 'DISCONNECTED'}
+                        </span>
+                        Groww API Status
+                      </h6>
+                      <div className="small text-muted mt-2">
+                        <div><strong>Mode:</strong> {isLive ? '🔴 LIVE Trading' : '🟡 PAPER Simulation'}</div>
+                        <div><strong>Auth Status:</strong> {growwAuth?.status || 'Paper Simulator Active'}</div>
+                        <div><strong>Outbound IP:</strong> <code className="bg-white px-1 py-0.5 rounded border">183.83.231.209</code></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="p-3 bg-light rounded-3 border h-100">
+                      <h6 className="fw-bold text-dark mb-2">🤖 Pure AI Auto-Pilot Execution</h6>
+                      <div className="small text-muted">
+                        <div>• Auto-scans high-probability setups (Score ≥ 80, Above VWAP).</div>
+                        <div>• Auto-places buy order with automatic quantity sizing.</div>
+                        <div>• Auto-attaches hard stop-loss (-2.5%), breakeven trail, & target lock.</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <h6 className="fw-bold mb-2">🔐 How to Connect Your Groww Account:</h6>
+                <ol className="small text-muted mb-3 ps-3">
+                  <li className="mb-1">Log in to your <strong>Groww Developer Console</strong>.</li>
+                  <li className="mb-1">Generate your <strong>API Key</strong> and <strong>API Secret</strong>.</li>
+                  <li className="mb-1">
+                    Add your server&apos;s public IP address (<strong><code>183.83.231.209</code></strong>) into Groww Developer Console under <strong>Allowed IPs</strong>.
+                  </li>
+                  <li className="mb-1">
+                    Set the following environment variables in your project configuration (or <code>.env.local</code>):
+                    <div className="bg-dark text-white p-2 rounded mt-1 font-monospace" style={{ fontSize: 11 }}>
+                      GROWW_API_KEY=your_api_key_here<br />
+                      GROWW_API_SECRET=your_api_secret_here<br />
+                      GROWW_CLIENT_ID=your_client_id
+                    </div>
+                  </li>
+                </ol>
+
+                <div className="alert alert-info py-2 px-3 small mb-0 rounded-3">
+                  💡 <strong>Tip:</strong> If you are testing strategies, you can use <strong>🟡 PAPER MODE</strong> anytime with 0 financial risk! All risk filters, standard scores, and trailing SL exits will run identically.
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowGrowwModal(false)}>
+                  Close
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-success text-white fw-bold"
+                  onClick={() => {
+                    setShowGrowwModal(false);
+                    loadStatus();
+                  }}
+                >
+                  🔄 Check Connection Now
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── LIVE MODE CONFIRMATION MODAL ── */}
       {showLiveConfirmModal && (

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import StockDetailModal from './StockDetailModal';
+import BuyerDemandMeter from './BuyerDemandMeter';
 import { NSE_INDEX_CATEGORIES } from '../../services/niftyIndexDirectory';
 
 const STORAGE_PORTFOLIO_KEY = 'user_selected_portfolio_stocks';
@@ -394,7 +395,8 @@ export default function Nifty50Scanner({ onQuickTrade = null }) {
                       </div>
                     </div>
 
-                    {/* Score Bar */}
+                    {/* Score & Live Buyer Demand Meter */}
+                    <BuyerDemandMeter stock={stock} />
                     <div className="p-2 rounded-3 bg-light border mb-2.5 d-flex align-items-center justify-content-between small">
                       <span className="text-muted fw-semibold">Score:</span>
                       <strong className="fs-6 text-primary">{stock.score} / 100</strong>
@@ -685,6 +687,7 @@ export default function Nifty50Scanner({ onQuickTrade = null }) {
                   <th>Symbol & Company</th>
                   <th className="text-end">LTP</th>
                   <th className="text-end">Change %</th>
+                  <th className="text-center">Buyer Demand</th>
                   <th className="text-end">Volume Ratio</th>
                   <th className="text-end">VWAP</th>
                   <th className="text-center">RSI / MACD</th>
@@ -722,6 +725,9 @@ export default function Nifty50Scanner({ onQuickTrade = null }) {
                           <span className={`badge ${stock.changePercent >= 0 ? 'bg-success' : 'bg-danger'} px-2 py-1`}>
                             {stock.changePercent >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%
                           </span>
+                        </td>
+                        <td className="text-center">
+                          <BuyerDemandMeter stock={stock} compact />
                         </td>
                         <td className="text-end text-primary fw-semibold">{stock.volumeRatio.toFixed(1)}x</td>
                         <td className="text-end font-monospace">₹{stock.vwap.toFixed(1)}</td>

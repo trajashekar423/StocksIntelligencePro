@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { runReversalScanner } from '../../services/strategy/reversalScannerEngine';
+import BuyerDemandMeter from './BuyerDemandMeter';
 
 // Default realistic seed candidates with 20-candle historical series
 function generateSeedCandidates() {
   // Helper to generate 20 candles with a specified trend and reversal
-  const makeCandles = (basePrice, trendType) => {
+  const makeCandles = (basePrice, trendType, baseVol = 150000) => {
     const candles = [];
     let p = basePrice;
 
@@ -22,7 +23,7 @@ function generateSeedCandidates() {
           high: open + (basePrice * 0.002),
           low: close - (basePrice * 0.003),
           close,
-          volume: 120000,
+          volume: Math.round(baseVol * 0.85),
         });
       }
       // Candle 19: Textbook Hammer (c2)
@@ -34,7 +35,7 @@ function generateSeedCandidates() {
         high: hammerClose + (basePrice * 0.001),
         low: hammerLow,
         close: hammerClose,
-        volume: 280000, // 2.3x volume surge
+        volume: Math.round(baseVol * 2.2), // 2.2x volume surge
       });
       // Candle 20: Bullish Confirmation (c1 breakout above Hammer High)
       candles.push({
@@ -42,7 +43,7 @@ function generateSeedCandidates() {
         high: hammerClose + (basePrice * 0.015),
         low: hammerClose - (basePrice * 0.002),
         close: hammerClose + (basePrice * 0.012), // Higher than hammer high
-        volume: 250000,
+        volume: Math.round(baseVol * 2.0), // 2.0x volume confirmation
       });
     } else if (trendType === 'DOWNTREND_ENGULFING_AWAITING') {
       // 18 candles declining
@@ -56,7 +57,7 @@ function generateSeedCandidates() {
           high: open + (basePrice * 0.002),
           low: close - (basePrice * 0.002),
           close,
-          volume: 90000,
+          volume: Math.round(baseVol * 0.85),
         });
       }
       // Candle 19: Red candle
@@ -67,7 +68,7 @@ function generateSeedCandidates() {
         high: redOpen + 2,
         low: redClose - 2,
         close: redClose,
-        volume: 85000,
+        volume: Math.round(baseVol * 0.8),
       });
       // Candle 20: Bullish Engulfing forming
       candles.push({
@@ -75,7 +76,7 @@ function generateSeedCandidates() {
         high: redOpen + (basePrice * 0.006),
         low: redClose - (basePrice * 0.003),
         close: redOpen + (basePrice * 0.004),
-        volume: 210000,
+        volume: Math.round(baseVol * 1.8),
       });
     } else if (trendType === 'PULLBACK_CONTINUATION') {
       // Steady uptrend, slight pullback to EMA20 / VWAP
@@ -89,21 +90,21 @@ function generateSeedCandidates() {
           high: close + (basePrice * 0.003),
           low: open - (basePrice * 0.002),
           close,
-          volume: 150000,
+          volume: Math.round(baseVol * 1.1),
         });
       }
       // 2 small pullback candles
       p -= (basePrice * 0.006);
-      candles.push({ open: p + 5, high: p + 7, low: p - 2, close: p, volume: 110000 });
+      candles.push({ open: p + 5, high: p + 7, low: p - 2, close: p, volume: Math.round(baseVol * 0.9) });
       p -= (basePrice * 0.004);
-      candles.push({ open: p + 4, high: p + 5, low: p - 3, close: p, volume: 95000 });
+      candles.push({ open: p + 4, high: p + 5, low: p - 3, close: p, volume: Math.round(baseVol * 0.85) });
       // Current candle bouncing off EMA20 / VWAP
       candles.push({
         open: p,
         high: p + (basePrice * 0.012),
         low: p - 1,
         close: p + (basePrice * 0.010),
-        volume: 240000,
+        volume: Math.round(baseVol * 1.8),
       });
     } else {
       // Top rejection / short setup
@@ -117,7 +118,7 @@ function generateSeedCandidates() {
           high: close + (basePrice * 0.002),
           low: open - (basePrice * 0.002),
           close,
-          volume: 140000,
+          volume: Math.round(baseVol * 1.1),
         });
       }
       // Candle 19: High spike
@@ -126,7 +127,7 @@ function generateSeedCandidates() {
         high: p + (basePrice * 0.035),
         low: p - 2,
         close: p + (basePrice * 0.005),
-        volume: 310000,
+        volume: Math.round(baseVol * 2.2),
       });
       // Candle 20: Breakdown below VWAP with long upper wick
       candles.push({
@@ -134,7 +135,7 @@ function generateSeedCandidates() {
         high: p + (basePrice * 0.02),
         low: p - (basePrice * 0.018),
         close: p - (basePrice * 0.015),
-        volume: 290000,
+        volume: Math.round(baseVol * 2.0),
       });
     }
 
@@ -146,7 +147,7 @@ function generateSeedCandidates() {
       symbol: 'ATHERENERG',
       companyName: 'Ather Energy Limited',
       sector: 'EV / AUTO',
-      candles: makeCandles(1644, 'DOWNTREND_HAMMER_CONFIRMED'),
+      candles: makeCandles(1644, 'DOWNTREND_HAMMER_CONFIRMED', 120000),
       ema20: 1675,
       ema50: 1710,
       ema9: 1640,
@@ -159,7 +160,7 @@ function generateSeedCandidates() {
       symbol: 'TATASTEEL',
       companyName: 'Tata Steel Limited',
       sector: 'METALS',
-      candles: makeCandles(148.5, 'DOWNTREND_HAMMER_CONFIRMED'),
+      candles: makeCandles(148.5, 'DOWNTREND_HAMMER_CONFIRMED', 8500000),
       ema20: 153.2,
       ema50: 156.0,
       ema9: 148.0,
@@ -169,23 +170,10 @@ function generateSeedCandidates() {
       averageVolume20: 8500000,
     },
     {
-      symbol: 'PAYTM',
-      companyName: 'One97 Communications Ltd',
-      sector: 'FINTECH',
-      candles: makeCandles(640, 'DOWNTREND_ENGULFING_AWAITING'),
-      ema20: 665,
-      ema50: 685,
-      ema9: 638,
-      rsiCurrent: 36,
-      rsiPrevious: 29,
-      atr: 14.0,
-      averageVolume20: 1800000,
-    },
-    {
       symbol: 'HDFCBANK',
       companyName: 'HDFC Bank Limited',
       sector: 'BANKING',
-      candles: makeCandles(1625, 'DOWNTREND_HAMMER_CONFIRMED'),
+      candles: makeCandles(1625, 'DOWNTREND_HAMMER_CONFIRMED', 3800000),
       ema20: 1648,
       ema50: 1665,
       ema9: 1622,
@@ -195,10 +183,75 @@ function generateSeedCandidates() {
       averageVolume20: 3800000,
     },
     {
+      symbol: 'POLYCAB',
+      companyName: 'Polycab India Limited',
+      sector: 'ELECTRICALS',
+      candles: makeCandles(6820, 'DOWNTREND_HAMMER_CONFIRMED', 650000),
+      ema20: 6920,
+      ema50: 7100,
+      ema9: 6810,
+      rsiCurrent: 41,
+      rsiPrevious: 32,
+      atr: 95.0,
+      averageVolume20: 650000,
+    },
+    {
+      symbol: 'HAL',
+      companyName: 'Hindustan Aeronautics Limited',
+      sector: 'DEFENCE',
+      candles: makeCandles(4850, 'DOWNTREND_HAMMER_CONFIRMED', 1800000),
+      ema20: 4940,
+      ema50: 5080,
+      ema9: 4840,
+      rsiCurrent: 40,
+      rsiPrevious: 31,
+      atr: 65.0,
+      averageVolume20: 1800000,
+    },
+    {
+      symbol: 'BEL',
+      companyName: 'Bharat Electronics Limited',
+      sector: 'DEFENCE TECH',
+      candles: makeCandles(312.5, 'DOWNTREND_HAMMER_CONFIRMED', 6200000),
+      ema20: 318.0,
+      ema50: 325.0,
+      ema9: 311.5,
+      rsiCurrent: 39,
+      rsiPrevious: 30,
+      atr: 4.2,
+      averageVolume20: 6200000,
+    },
+    {
+      symbol: 'TITAN',
+      companyName: 'Titan Company Limited',
+      sector: 'CONSUMER / JEWELLERY',
+      candles: makeCandles(3450, 'DOWNTREND_HAMMER_CONFIRMED', 1200000),
+      ema20: 3510,
+      ema50: 3600,
+      ema9: 3445,
+      rsiCurrent: 38,
+      rsiPrevious: 29,
+      atr: 48.0,
+      averageVolume20: 1200000,
+    },
+    {
+      symbol: 'PAYTM',
+      companyName: 'One97 Communications Ltd',
+      sector: 'FINTECH',
+      candles: makeCandles(640, 'DOWNTREND_ENGULFING_AWAITING', 1800000),
+      ema20: 665,
+      ema50: 685,
+      ema9: 638,
+      rsiCurrent: 36,
+      rsiPrevious: 29,
+      atr: 14.0,
+      averageVolume20: 1800000,
+    },
+    {
       symbol: 'RELIANCE',
       companyName: 'Reliance Industries Limited',
       sector: 'ENERGY',
-      candles: makeCandles(2980, 'PULLBACK_CONTINUATION'),
+      candles: makeCandles(2980, 'PULLBACK_CONTINUATION', 2200000),
       vwap: 2968,
       ema20: 2970,
       ema50: 2930,
@@ -212,7 +265,7 @@ function generateSeedCandidates() {
       symbol: 'TATAMOTORS',
       companyName: 'Tata Motors Limited',
       sector: 'AUTO',
-      candles: makeCandles(1045, 'PULLBACK_CONTINUATION'),
+      candles: makeCandles(1045, 'PULLBACK_CONTINUATION', 3200000),
       vwap: 1038,
       ema20: 1040,
       ema50: 1015,
@@ -226,7 +279,7 @@ function generateSeedCandidates() {
       symbol: 'INFY',
       companyName: 'Infosys Limited',
       sector: 'IT',
-      candles: makeCandles(1820, 'PULLBACK_CONTINUATION'),
+      candles: makeCandles(1820, 'PULLBACK_CONTINUATION', 2400000),
       vwap: 1814,
       ema20: 1816,
       ema50: 1795,
@@ -240,7 +293,7 @@ function generateSeedCandidates() {
       symbol: 'SUNPHARMA',
       companyName: 'Sun Pharmaceutical Ind.',
       sector: 'PHARMA',
-      candles: makeCandles(1780, 'TOP_REJECTION_SHORT'),
+      candles: makeCandles(1780, 'TOP_REJECTION_SHORT', 1400000),
       vwap: 1785,
       ema20: 1750,
       ema50: 1730,
@@ -254,7 +307,7 @@ function generateSeedCandidates() {
       symbol: 'DLF',
       companyName: 'DLF Limited',
       sector: 'REALTY',
-      candles: makeCandles(865, 'TOP_REJECTION_SHORT'),
+      candles: makeCandles(865, 'TOP_REJECTION_SHORT', 2100000),
       vwap: 872,
       ema20: 840,
       ema50: 820,
@@ -620,6 +673,9 @@ export default function ReversalQuantScanner({ onQuickTrade = null, onSendToPrac
                           </span>
                         </div>
                       </div>
+
+                      {/* 📊 Live 0-100% Buyer Demand Meter */}
+                      <BuyerDemandMeter stock={candidate} />
 
                       {/* Setup Type & Confirmation Gate Banner */}
                       <div className="mb-2 p-2 rounded d-flex align-items-center justify-content-between gap-2" style={{ background: 'rgba(30, 41, 59, 0.7)' }}>

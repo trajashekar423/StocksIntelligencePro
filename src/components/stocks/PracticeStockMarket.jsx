@@ -45,6 +45,17 @@ export default function PracticeStockMarket() {
   const [customTgtPct, setCustomTgtPct] = useState(2.5); // default 2.5% Target 1
   const [orderFeedback, setOrderFeedback] = useState(null);
 
+  // Terminal Practice Mode: 'EQUITY' vs 'OPTIONS'
+  const [practiceTerminalTab, setPracticeTerminalTab] = useState('EQUITY');
+
+  // Options Simulator State
+  const [optIndex, setOptIndex] = useState('NIFTY 50');
+  const [optType, setOptType] = useState('PUT'); // 'CALL' (CE) vs 'PUT' (PE)
+  const [optStrike, setOptStrike] = useState(23650);
+  const [optLots, setOptLots] = useState(1);
+  const [optSlPct, setOptSlPct] = useState(20); // 20% SL on option premium
+  const [optTgtPct, setOptTgtPct] = useState(40); // 40% Target on option premium
+
   // Modals & Sound
   const [chartModalStock, setChartModalStock] = useState(null);
   const [showLearningGuide, setShowLearningGuide] = useState(true);
@@ -583,6 +594,88 @@ export default function PracticeStockMarket() {
     setTimeout(() => setOrderFeedback(null), 5000);
   };
 
+  // 8b. Option Contract Pricing & Risk Calculation Helper
+  const optionContractDetails = useMemo(() => {
+    const isNifty = optIndex === 'NIFTY 50';
+    const spot = isNifty ? 23650 : 51200;
+    const lotSize = isNifty ? 25 : 15;
+    const strike = Number(optStrike);
+
+    // Calculate realistic option premium based on strike distance and Call/Put type
+    let basePremium = isNifty ? 35 : 140;
+    const dist = (strike - spot) * (optType === 'CALL' ? -1 : 1);
+    const estPremium = Math.max(8, Number((basePremium + dist * 0.45).toFixed(2)));
+
+    const totalQty = optLots * lotSize;
+    const totalInvestment = Number((estPremium * totalQty).toFixed(2));
+    const slPrice = Number((estPremium * (1 - optSlPct / 100)).toFixed(2));
+    const tgtPrice = Number((estPremium * (1 + optTgtPct / 100)).toFixed(2));
+    const maxLossRupees = Number(((estPremium - slPrice) * totalQty).toFixed(2));
+    const maxGainRupees = Number(((tgtPrice - estPremium) * totalQty).toFixed(2));
+
+    return {
+      spot,
+      lotSize,
+      strike,
+      estPremium,
+      totalQty,
+      totalInvestment,
+      slPrice,
+      tgtPrice,
+      maxLossRupees,
+      maxGainRupees,
+      contractSymbol: `${optIndex === 'NIFTY 50' ? 'NIFTY' : 'BANKNIFTY'} ${strike} ${optType === 'CALL' ? 'Call (CE)' : 'Put (PE)'}`,
+    };
+  }, [optIndex, optType, optStrike, optLots, optSlPct, optTgtPct]);
+
+  // 8c. Place Virtual Option Order (BUY CALL or BUY PUT)
+  const handlePlaceOptionOrder = () => {
+    const details = optionContractDetails;
+    if (details.totalInvestment > wallet.balance) {
+      alert(
+        `Insufficient virtual balance! Required: ₹${details.totalInvestment.toLocaleString('en-IN')}, Available: ₹${wallet.balance.toLocaleString('en-IN')}. Reduce lots or reset balance.`
+      );
+      return;
+    }
+
+    const newPosition = {
+      id: `OPT-${Date.now()}-${details.contractSymbol}`,
+      symbol: details.contractSymbol,
+      companyName: `${optIndex} Options Contract`,
+      side: optType === 'CALL' ? 'BUY_CALL' : 'BUY_PUT',
+      isOption: true,
+      qty: details.totalQty,
+      initialQty: details.totalQty,
+      entryPrice: details.estPremium,
+      currentPrice: details.estPremium,
+      stopLoss: details.slPrice,
+      trailingStop: details.slPrice,
+      target1: details.tgtPrice,
+      highestPrice: details.estPremium,
+      lowestPrice: details.estPremium,
+      peakPnl: 0,
+      pnl: 0,
+      pnlPct: 0,
+      entryTime: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }),
+      halfBooked: false,
+    };
+
+    const nextWallet = {
+      ...wallet,
+      balance: Number((wallet.balance - details.totalInvestment).toFixed(2)),
+    };
+    updateWallet(nextWallet);
+
+    const nextPositions = [newPosition, ...openPositions];
+    updatePositions(nextPositions);
+
+    playSound('PROFIT');
+    setOrderFeedback(
+      `🟢 ${optType === 'CALL' ? 'Call (CE)' : 'Put (PE)'} Option Opened: ${details.contractSymbol} @ ₹${details.estPremium} (${details.totalQty} Qty / ${optLots} Lot, Total: ₹${details.totalInvestment})`
+    );
+    setTimeout(() => setOrderFeedback(null), 5000);
+  };
+
   // 9. Manual Partial Book (50%)
   const handlePartialBook50Pct = (posId) => {
     const pos = openPositions.find((p) => p.id === posId);
@@ -843,40 +936,195 @@ export default function PracticeStockMarket() {
         </div>
       )}
 
-      {/* ── 3. STOCK SEARCH & 2-WAY ORDER ENTRY TERMINAL ── */}
+      {/* ── 3. STOCK & OPTIONS ORDER ENTRY TERMINAL ── */}
       <div className="card border-0 shadow-sm rounded-4 p-3 p-md-4 mb-4 bg-light">
-        <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+        {/* Terminal Header & Mode Switcher */}
+        <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3 pb-3 border-bottom border-secondary border-opacity-25">
           <div>
             <h5 className="fw-bold mb-0 text-dark">🎯 Virtual Order Placement Terminal</h5>
-            <small className="text-muted">Select 🟢 BUY (Go Long) or 🔴 SHORT SELL (Profit on Fall) to practice 2-way intraday setups.</small>
+            <small className="text-muted">Practice Stock Equities (Long/Short) or Index Options (Call CE & Put PE).</small>
           </div>
 
-          {/* Search Any NSE Symbol */}
-          <form
-            className="d-flex align-items-center gap-2 w-100 w-md-auto"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (searchSymbolInput.trim()) {
-                const sym = searchSymbolInput.trim().toUpperCase();
-                setSelectedSymbol(sym);
-                fetchLiveQuote(sym);
-                setSearchSymbolInput('');
-              }
-            }}
-          >
-            <input
-              type="text"
-              className="form-control form-control-sm rounded-pill px-3 shadow-sm"
-              placeholder="Search any NSE symbol (e.g. SWIGGY)..."
-              value={searchSymbolInput}
-              onChange={(e) => setSearchSymbolInput(e.target.value)}
-              style={{ maxWidth: 260 }}
-            />
-            <button type="submit" className="btn btn-sm btn-primary rounded-pill px-3 fw-bold">
-              Analyze
+          <div className="btn-group btn-group-sm">
+            <button
+              type="button"
+              className={`btn ${practiceTerminalTab === 'EQUITY' ? 'btn-primary fw-bold' : 'btn-outline-secondary'}`}
+              onClick={() => setPracticeTerminalTab('EQUITY')}
+            >
+              📈 Equities (Stocks)
             </button>
-          </form>
+            <button
+              type="button"
+              className={`btn ${practiceTerminalTab === 'OPTIONS' ? 'btn-warning text-dark fw-bold' : 'btn-outline-secondary'}`}
+              onClick={() => setPracticeTerminalTab('OPTIONS')}
+            >
+              📊 Options (NIFTY / BANKNIFTY Call & Put)
+            </button>
+          </div>
         </div>
+
+        {/* ── OPTIONS PRACTICE TERMINAL BLOCK ── */}
+        {practiceTerminalTab === 'OPTIONS' && (
+          <div className="bg-white p-3 p-md-4 rounded-4 border border-warning shadow-sm mb-3">
+            <div className="alert bg-gradient text-dark border-warning p-3 rounded-3 mb-3" style={{ background: 'linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%)' }}>
+              <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div>
+                  <h6 className="fw-bold mb-1">💡 Call (CE) vs Put (PE) Practice Cheat Sheet:</h6>
+                  <ul className="mb-0 small ps-3">
+                    <li><b>🟢 CALL (CE)</b>: Buy when you predict the index will <b>RISE / GO UP 📈</b></li>
+                    <li><b>🔴 PUT (PE)</b>: Buy when you predict the index will <b>FALL / GO DOWN 📉</b></li>
+                  </ul>
+                </div>
+                <div className="text-end">
+                  <span className="badge bg-dark text-warning p-2">NIFTY Lot = 25 Qty</span>
+                  <span className="badge bg-dark text-info p-2 ms-1">BANKNIFTY Lot = 15 Qty</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="row g-3 align-items-center">
+              {/* Index Selection */}
+              <div className="col-md-3">
+                <label className="form-label text-muted small fw-bold">1. Select Index:</label>
+                <select
+                  className="form-select form-select-sm fw-bold border-secondary"
+                  value={optIndex}
+                  onChange={(e) => {
+                    const idx = e.target.value;
+                    setOptIndex(idx);
+                    setOptStrike(idx === 'NIFTY 50' ? 23650 : 51200);
+                  }}
+                >
+                  <option value="NIFTY 50">🇮🇳 NIFTY 50 (Spot ~23,650)</option>
+                  <option value="BANK NIFTY">🏦 BANK NIFTY (Spot ~51,200)</option>
+                </select>
+              </div>
+
+              {/* Option Direction: CALL vs PUT */}
+              <div className="col-md-3">
+                <label className="form-label text-muted small fw-bold">2. Option Type:</label>
+                <div className="btn-group w-100 btn-group-sm">
+                  <button
+                    type="button"
+                    className={`btn ${optType === 'CALL' ? 'btn-success fw-bold' : 'btn-outline-success'}`}
+                    onClick={() => setOptType('CALL')}
+                  >
+                    🟢 CALL (CE) 📈
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${optType === 'PUT' ? 'btn-danger fw-bold' : 'btn-outline-danger'}`}
+                    onClick={() => setOptType('PUT')}
+                  >
+                    🔴 PUT (PE) 📉
+                  </button>
+                </div>
+              </div>
+
+              {/* Strike Price */}
+              <div className="col-md-3">
+                <label className="form-label text-muted small fw-bold">3. Strike Price:</label>
+                <select
+                  className="form-select form-select-sm fw-bold border-secondary"
+                  value={optStrike}
+                  onChange={(e) => setOptStrike(Number(e.target.value))}
+                >
+                  {optIndex === 'NIFTY 50' ? (
+                    <>
+                      <option value={23600}>23600 Strike (ITM/OTM)</option>
+                      <option value={23650}>23650 Strike (ATM - At The Money)</option>
+                      <option value={23700}>23700 Strike</option>
+                      <option value={23750}>23750 Strike</option>
+                      <option value={23800}>23800 Strike</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value={51000}>51000 Strike</option>
+                      <option value={51200}>51200 Strike (ATM)</option>
+                      <option value={51500}>51500 Strike</option>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              {/* Number of Lots */}
+              <div className="col-md-3">
+                <label className="form-label text-muted small fw-bold">4. Number of Lots:</label>
+                <select
+                  className="form-select form-select-sm fw-bold border-secondary"
+                  value={optLots}
+                  onChange={(e) => setOptLots(Number(e.target.value))}
+                >
+                  <option value={1}>1 Lot ({optionContractDetails.lotSize * 1} Qty)</option>
+                  <option value={2}>2 Lots ({optionContractDetails.lotSize * 2} Qty)</option>
+                  <option value={4}>4 Lots ({optionContractDetails.lotSize * 4} Qty)</option>
+                  <option value={10}>10 Lots ({optionContractDetails.lotSize * 10} Qty)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Option Calculation & Execution Summary */}
+            <div className="mt-3 p-3 bg-dark text-light rounded-3">
+              <div className="row g-3 align-items-center">
+                <div className="col-md-6">
+                  <span className="badge bg-warning text-dark fw-bold mb-1">{optionContractDetails.contractSymbol}</span>
+                  <div className="d-flex align-items-baseline gap-2">
+                    <span className="fs-4 fw-bold text-success">₹{optionContractDetails.estPremium}</span>
+                    <span className="text-light-50 small">/ share premium</span>
+                  </div>
+                  <small className="text-muted d-block">
+                    Total Investment: <b className="text-warning">₹{optionContractDetails.totalInvestment.toLocaleString('en-IN')}</b> ({optionContractDetails.totalQty} shares)
+                  </small>
+                </div>
+
+                <div className="col-md-6 text-end">
+                  <div className="d-flex justify-content-end gap-3 mb-2 small text-light-50">
+                    <span>Stop Loss (-{optSlPct}%): <b className="text-danger">₹{optionContractDetails.slPrice}</b></span>
+                    <span>Target (+{optTgtPct}%): <b className="text-success">₹{optionContractDetails.tgtPrice}</b></span>
+                  </div>
+                  <button
+                    type="button"
+                    className={`btn w-100 fw-bold py-2.5 ${optType === 'CALL' ? 'btn-success' : 'btn-danger'}`}
+                    onClick={handlePlaceOptionOrder}
+                  >
+                    🚀 Buy {optType === 'CALL' ? 'Call (CE)' : 'Put (PE)'} Option (₹{optionContractDetails.totalInvestment.toLocaleString('en-IN')} Virtual Funds)
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── EQUITIES PRACTICE TERMINAL BLOCK ── */}
+        {practiceTerminalTab === 'EQUITY' && (
+          <>
+            <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+              {/* Search Any NSE Symbol */}
+              <form
+                className="d-flex align-items-center gap-2 w-100 w-md-auto"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (searchSymbolInput.trim()) {
+                    const sym = searchSymbolInput.trim().toUpperCase();
+                    setSelectedSymbol(sym);
+                    fetchLiveQuote(sym);
+                    setSearchSymbolInput('');
+                  }
+                }}
+              >
+                <input
+                  type="text"
+                  className="form-control form-control-sm rounded-pill px-3 shadow-sm"
+                  placeholder="Search any NSE symbol (e.g. SWIGGY)..."
+                  value={searchSymbolInput}
+                  onChange={(e) => setSearchSymbolInput(e.target.value)}
+                  style={{ maxWidth: 260 }}
+                />
+                <button type="submit" className="btn btn-sm btn-primary rounded-pill px-3 fw-bold">
+                  Analyze
+                </button>
+              </form>
+            </div>
 
         {/* Quick Stock Chips */}
         <div className="d-flex flex-wrap gap-2 mb-3">
@@ -1022,6 +1270,8 @@ export default function PracticeStockMarket() {
             </div>
           </div>
         ) : null}
+        </>
+      )}
       </div>
 
       {/* ── 4. ACTIVE VIRTUAL POSITIONS (Real-Time Live NSE Monitoring) ── */}

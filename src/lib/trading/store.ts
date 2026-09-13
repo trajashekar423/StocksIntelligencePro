@@ -3,10 +3,20 @@
  * File-backed persistence using server/data/trading-store.json
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
 import type { Position, DailyStats, TradingLog, TradingConfig } from '../../types/trading.ts';
 import { DEFAULT_TRADING_CONFIG } from './config.ts';
+
+let fs: any = null;
+let path: any = null;
+
+if (typeof window === 'undefined') {
+  try {
+    fs = require('fs');
+    path = require('path');
+  } catch {
+    // client browser bundle fallback
+  }
+}
 
 interface StoreData {
   config: TradingConfig;
@@ -47,12 +57,18 @@ let inMemoryStore: StoreData = {
   logs: [],
 };
 
-const STORE_PATH = path.resolve(process.cwd(), 'server', 'data', 'trading-store.json');
+function getStorePath(): string {
+  if (path && typeof process !== 'undefined' && process.cwd) {
+    return path.resolve(process.cwd(), 'server', 'data', 'trading-store.json');
+  }
+  return '';
+}
 
 function loadFromFile() {
   try {
-    if (fs.existsSync(STORE_PATH)) {
-      const raw = fs.readFileSync(STORE_PATH, 'utf8');
+    const storePath = getStorePath();
+    if (fs && storePath && fs.existsSync(storePath)) {
+      const raw = fs.readFileSync(storePath, 'utf8');
       const parsed = JSON.parse(raw);
       if (parsed) {
         inMemoryStore.config = { ...DEFAULT_TRADING_CONFIG, ...(parsed.config || {}) };
@@ -76,11 +92,14 @@ function loadFromFile() {
 
 function saveToFile() {
   try {
-    const dir = path.dirname(STORE_PATH);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    const storePath = getStorePath();
+    if (fs && path && storePath) {
+      const dir = path.dirname(storePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(storePath, JSON.stringify(inMemoryStore, null, 2), 'utf8');
     }
-    fs.writeFileSync(STORE_PATH, JSON.stringify(inMemoryStore, null, 2), 'utf8');
   } catch {
     // ignore
   }

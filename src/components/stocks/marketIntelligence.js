@@ -76,6 +76,60 @@ export const STOCK_TAB_HELP = {
     description: 'Institutional 100-pt Bullish Reversal engine + 3 Master Setups (Down→Up Reversal, Up→Pullback→Up, Up→Reversal→Down) with strict 2nd candle confirmation gate and ATR stop loss.',
     beginnerTip: 'Never buy on Candle 1 alone. Wait for Candle 2 to break above the reversal candle high with volume.',
   },
+  'trading-skill-risk': {
+    title: '🛡️ Trading Skill & Risk Expectancy Dashboard',
+    tone: 'gold',
+    description: 'Institutional risk management engine: Expectancy (₹/trade), non-linear drawdown recovery math, rules-compliance trade quality scoring (A/B/C/F), and conviction oversize guard.',
+    beginnerTip: 'Win rate is meaningless without positive expectancy. Keep losses small and follow rules.',
+  },
+  'short-sell': {
+    title: '🔻 Short Sell Radar & MSCI Catalysts',
+    tone: 'gold',
+    description: 'Scans for breakdown stocks opening down, breaking VWAP, and negative news catalysts for high-conviction intraday short setup.',
+    beginnerTip: 'Only short stocks trading below VWAP with high relative volume.',
+  },
+  'bigshot-radar': {
+    title: '⭐ BigShot Radar (5x Vol & Mega Blocks)',
+    tone: 'gold',
+    description: 'Tracks institutional block buys > ₹500 Cr, 5x volume spikes, and 100% Upper Circuit freezes.',
+    beginnerTip: 'Upper Circuit freezes (100% UC) indicate maximum buyer demand and high probability of morning gap-up.',
+  },
+  watchfornextday: {
+    title: '🔮 Watch For Next Day (3:00 PM BTST Scanner)',
+    tone: 'gold',
+    description: 'BTST Pre-Close momentum setup: Buy window 3:00 PM – 3:25 PM, Target sell window 9:15 AM – 9:45 AM tomorrow.',
+    beginnerTip: 'Enter late in the day (after 3:00 PM) when momentum is confirmed.',
+  },
+  'block-deals': {
+    title: '🏢 Institutional Block Deals Tracker',
+    tone: 'green',
+    description: 'Real-time tracking of massive bulk and block deals executed by FIIs, DIIs, and promoters.',
+    beginnerTip: 'Look for repeated block buys by institutional buyers.',
+  },
+  nifty50: {
+    title: '🇮🇳 NIFTY50 Momentum Scanner',
+    tone: 'green',
+    description: 'Scans all 50 blue-chip NIFTY constituents for high-volume breakouts and swing momentum setups.',
+    beginnerTip: 'Blue-chip NIFTY50 stocks offer higher liquidity and lower slippage risk.',
+  },
+  'practice-trading': {
+    title: '🎓 Practice Stock Market (Paper Trading)',
+    tone: 'gold',
+    description: 'Practice trading with ₹1,00,000 virtual funds on live real-time NSE price feeds with zero risk.',
+    beginnerTip: 'Test your setups in paper mode before executing live trades.',
+  },
+  'stock-bonus-dividend': {
+    title: '🎁 Stock Bonus, Split & Dividend Radar',
+    tone: 'neutral',
+    description: 'Track upcoming corporate actions like stock splits, bonus shares, and ex-dividend dates across NSE listed companies.',
+    beginnerTip: 'Verify ex-dates before entering trades around corporate actions.',
+  },
+  mystocks: {
+    title: '📁 Personal Portfolio Watchlist',
+    tone: 'green',
+    description: 'Track and manage your core holdings and personal watchlist stocks.',
+    beginnerTip: 'Monitor your core holdings for stop loss or target exits regularly.',
+  },
 };
 
 function getSymbolKey(symbol) {

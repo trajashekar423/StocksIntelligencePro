@@ -6,9 +6,10 @@
 export const SCANNER_CONFIG = {
   // ── 1. HIGH-LEVEL COMPONENT WEIGHTS (Total = 1.00 / 100%) ──
   WEIGHTS: {
-    GLOBAL_MARKET: 0.20,      // 20%
-    INDIAN_MARKET: 0.30,      // 30%
-    STOCK_TECHNICAL: 0.35,    // 35%
+    GLOBAL_MARKET: 0.15,      // 15% (was 20%)
+    INDIAN_MARKET: 0.25,      // 25% (was 30%)
+    STOCK_TECHNICAL: 0.30,    // 30% (was 35%)
+    NEWS_SENTIMENT: 0.15,     // 15% (NEW — live news sentiment)
     LIQUIDITY_VOLUME: 0.10,   // 10%
     RISK_FILTER: 0.05,        // 5%
   },

@@ -47,6 +47,7 @@ import SeasonalThematicRadar from './SeasonalThematicRadar.jsx';
 import ReversalQuantScanner from './ReversalQuantScanner.jsx';
 import StockBonusDividend from './StockBonusDividend.jsx';
 import ShortSellRadar from './ShortSellRadar.jsx';
+import TradingSkillDashboard from './TradingSkillDashboard.jsx';
 
 const UNAVAILABLE = 'Unavailable';
 
@@ -1868,6 +1869,7 @@ function TableView({
 const LIVE_SCANNER_COLUMNS = [
   { key: 'symbol', label: 'Symbol' },
   { key: 'price', label: 'LTP (₹)' },
+  { key: 'buyerMeter', label: '📊 Buyer Demand (0-100%)' },
   { key: 'liveSignal', label: 'Live Signal & Alert' },
   { key: 'profitActionAdvice', label: 'Profit Limit Action' },
   { key: 'score', label: 'Score' },
@@ -1883,6 +1885,7 @@ const LIVE_SCANNER_COLUMNS = [
 const BREAKOUT_COLUMNS = [
   { key: 'symbol', label: 'Symbol' },
   { key: 'price', label: 'LTP' },
+  { key: 'buyerMeter', label: '📊 Buyer Demand' },
   { key: 'breakoutTypes', label: 'Breakout Type' },
   { key: 'score', label: 'Score' },
   { key: 'recommendation', label: 'Recommendation' },
@@ -2008,7 +2011,7 @@ export default function Stocks() {
   const [
     activeTab,
     setActiveTab,
-  ] = useState('dashboard');
+  ] = useState('watchfornextday');
 
   const [
     marketIntelligenceData,
@@ -3038,14 +3041,13 @@ export default function Stocks() {
           <div className="d-flex flex-wrap justify-content-between align-items-center mb-3">
             <div>
               <h3 className="mb-1 text-primary fw-bold d-flex align-items-center gap-2 flex-wrap">
-                <span>🎯 TOP 10 NSE STOCKS FOR TOMORROW INTRADAY</span>
-                <span className="btst-badge-blink">
-                  <span className="btst-dot"></span>
-                  BTST CANDIDATES
+                <span>🎯 TODAY'S SAFE INTRADAY STOCKS</span>
+                <span className="badge bg-success text-white px-2.5 py-1 fw-bold">
+                  ✅ SAFE TO ENTER
                 </span>
               </h3>
               <div className="small text-muted">
-                Calculated on Market Close & EOD Volume Profile · Data Date: <strong className="text-dark">{tomorrowScanner.dataDate}</strong> · Time: <strong className="text-dark">{tomorrowScanner.dataTime}</strong>
+                Calculated for Today · Data Date: <strong className="text-dark">{tomorrowScanner.dataDate}</strong> · Time: <strong className="text-dark">{tomorrowScanner.dataTime}</strong>
               </div>
             </div>
             <div className="d-flex align-items-center gap-2 mt-2 mt-md-0">
@@ -3130,11 +3132,16 @@ export default function Stocks() {
               </thead>
 
               <tbody>
-                {tomorrowScanner.top10.map((row) => (
+                {(tomorrowScanner.safeCandidates?.length ? tomorrowScanner.safeCandidates : tomorrowScanner.top10).map((row) => (
                   <tr key={row.symbol}>
                     <td className="fw-bold">{row.rank}</td>
                     <td>
-                      <strong className="text-primary">{row.symbol}</strong>
+                      <strong className="text-primary d-block">{row.symbol}</strong>
+                      {row.mtfLabel && (
+                        <span className={`badge ${row.mtfBadge || 'bg-success text-white'} px-1.5 py-0.5 mt-0.5`} style={{ fontSize: '0.68rem' }}>
+                          {row.mtfLabel}
+                        </span>
+                      )}
                     </td>
                     <td className="text-dark">{row.companyName}</td>
                     <td className="fw-bold">{formatMoney(row.price)}</td>
@@ -3205,7 +3212,12 @@ export default function Stocks() {
                         <tr key={row.symbol} className={isSafe ? 'table-success bg-opacity-25' : ''}>
                           <td>
                             <strong className="text-primary d-block">{row.symbol}</strong>
-                            <small className="text-muted d-block" style={{ fontSize: '0.78rem' }}>
+                            {row.mtfLabel && (
+                              <span className={`badge ${row.mtfBadge || 'bg-success text-white'} px-1.5 py-0.5 mt-0.5 d-inline-block`} style={{ fontSize: '0.66rem' }}>
+                                {row.mtfLabel}
+                              </span>
+                            )}
+                            <small className="text-muted d-block mt-0.5" style={{ fontSize: '0.78rem' }}>
                               {row.companyName}
                             </small>
                           </td>
@@ -3346,6 +3358,11 @@ export default function Stocks() {
       {/* PRACTICE STOCK MARKET (DUMMY FUNDS & LIVE REAL NSE DATA) */}
       {activeTab === 'practice-trading' && (
         <PracticeStockMarket />
+      )}
+
+      {/* TRADING SKILL & RISK EXPECTANCY DASHBOARD */}
+      {activeTab === 'trading-skill-risk' && (
+        <TradingSkillDashboard />
       )}
 
       {/* SHORT SELL RADAR: DOWN AT OPEN & NEWS CATALYSTS */}

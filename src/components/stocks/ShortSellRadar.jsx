@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { runShortSellScan } from '../../services/strategy/shortSellEngine';
 import StockDetailModal from './StockDetailModal.jsx';
+import LiveNewsTicker from './LiveNewsTicker.jsx';
+import BuyerDemandMeter from './BuyerDemandMeter.jsx';
 
 export default function ShortSellRadar({
   stocks = [],
@@ -16,6 +18,41 @@ export default function ShortSellRadar({
   const [growwGuideStock, setGrowwGuideStock] = useState(null);
   const [soundAlertsEnabled, setSoundAlertsEnabled] = useState(true);
   const [feedbackMsg, setFeedbackMsg] = useState(null);
+
+  // Live News State
+  const [liveNewsEnabled, setLiveNewsEnabled] = useState(true);
+  const [liveNewsMap, setLiveNewsMap] = useState({});
+  const [newsLoading, setNewsLoading] = useState(false);
+
+  // Batch fetch news for short candidates
+  const fetchLiveNews = useCallback(async () => {
+    if (!liveNewsEnabled) return;
+    try {
+      setNewsLoading(true);
+      // Key short candidate symbols
+      const defaultSymbols = ['SWIGGY', 'PAYTM', 'ZEEL', 'INDUSINDBK', 'DELHIVERY', 'BANDHANBNK', 'VEDL', 'BATAINDIA'];
+      const stockSymbols = stocks.map(s => (s.symbol || s.Symbol || '').toUpperCase()).filter(Boolean);
+      const allSymbols = Array.from(new Set([...defaultSymbols, ...stockSymbols])).slice(0, 8);
+
+      const res = await fetch(`/api/news?symbols=${allSymbols.join(',')}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.results) {
+          setLiveNewsMap(data.results);
+        }
+      }
+    } catch (err) {
+      console.warn('[ShortSellRadar] News fetch error:', err);
+    } finally {
+      setNewsLoading(false);
+    }
+  }, [liveNewsEnabled, stocks]);
+
+  useEffect(() => {
+    fetchLiveNews();
+    const interval = setInterval(fetchLiveNews, 5 * 60 * 1000); // 5 minutes
+    return () => clearInterval(interval);
+  }, [fetchLiveNews]);
 
   // Audio Synthesizer for Short Breakdown Chime
   const playAlertChime = useCallback((type) => {
@@ -47,15 +84,19 @@ export default function ShortSellRadar({
     }
   }, [soundAlertsEnabled]);
 
-  // Run full Short Sell Scanner
+  // Run full Short Sell Scanner with live news map
   const scanResults = useMemo(() => {
-    return runShortSellScan(stocks, {
-      giftNiftyChange: -65,
-      usMarketSentiment: 'BEARISH',
-      indiaVix: 15.8,
-      crudeOilChange: 1.8,
-    });
-  }, [stocks]);
+    return runShortSellScan(
+      stocks,
+      {
+        giftNiftyChange: -65,
+        usMarketSentiment: 'BEARISH',
+        indiaVix: 15.8,
+        crudeOilChange: 1.8,
+      },
+      liveNewsEnabled ? liveNewsMap : {}
+    );
+  }, [stocks, liveNewsMap, liveNewsEnabled]);
 
   // Request Desktop Notification Permission
   const requestNotificationPermission = () => {
@@ -125,6 +166,14 @@ export default function ShortSellRadar({
 
           {/* Quick Notification & Sound Controls */}
           <div className="d-flex flex-wrap align-items-center gap-2">
+            <button
+              type="button"
+              className={`btn btn-sm ${liveNewsEnabled ? 'btn-danger text-white' : 'btn-outline-light'}`}
+              onClick={() => setLiveNewsEnabled(!liveNewsEnabled)}
+              title="Toggle Live News Sentiment Integration"
+            >
+              {newsLoading ? '⏳ Fetching News...' : liveNewsEnabled ? '📰 Live News: ON' : '📰 Live News: OFF'}
+            </button>
             <button
               type="button"
               className={`btn btn-sm ${soundAlertsEnabled ? 'btn-outline-warning' : 'btn-outline-secondary text-white'}`}
@@ -290,6 +339,9 @@ export default function ShortSellRadar({
                       {stock.newsHeadline}
                     </p>
                   </div>
+
+                  {/* 📊 Live Buyer vs Seller Meter */}
+                  <BuyerDemandMeter stock={stock} />
 
                   {/* Key Short Levels */}
                   <div className="row g-2 small mb-3">

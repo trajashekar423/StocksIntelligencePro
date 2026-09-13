@@ -12,6 +12,9 @@ import {
 import { checkIsAfter130IST } from '../../services/risk/riskEngine';
 import { DEFAULT_PROFIT_PROTECTION_CONFIG } from '../../services/risk/profitProtectionEngine';
 import { createTimelineEvent } from '../../services/risk/alertEngine';
+import { calculateExpectancy } from '../../services/risk/tradeExpectancyEngine';
+import { scoreTradeQuality } from '../../services/risk/tradeQualityEngine';
+import { calculateDrawdownRecovery } from '../../lib/trading/positionSizer';
 
 // URL Parser Helper: supports NSE India, Groww, Yahoo, or plain symbol
 export function parseStockUrlOrSymbol(input: string): { symbol: string; companyName?: string } {
@@ -321,6 +324,69 @@ export default function LivePositionRiskMonitor({ onExitPosition }: LivePosition
     return calculateDailyRiskSummary(positions, 100000, 5000, DEFAULT_PROFIT_PROTECTION_CONFIG);
   }, [positions]);
 
+  // ── VIDEO LOGIC: Edge Stats (Expectancy + Trade Quality + Drawdown Recovery) ──
+  const edgeStats = useMemo(() => {
+    if (!closedPositions || closedPositions.length === 0) return null;
+
+    // Build expectancy trades from closed positions
+    const expectancyTrades = closedPositions.map((p: any) => ({
+      id: p.id || String(Math.random()),
+      realizedPnL: Number(p.realizedPnL ?? 0),
+      riskAmount: Math.abs(
+        (Number(p.entryPrice ?? 0) - Number(p.initialStopLoss ?? 0)) *
+        Number(p.quantity ?? 1)
+      ) || Math.max(Math.abs(Number(p.realizedPnL ?? 0)) * 0.5, 1),
+    }));
+    const expectancy = calculateExpectancy(expectancyTrades);
+
+    // Score quality of each closed trade
+    const qualityReports = closedPositions.map((p: any) => {
+      try {
+        return scoreTradeQuality({
+          id: p.id,
+          realizedPnL: Number(p.realizedPnL ?? 0),
+          entryPrice: Number(p.entryPrice ?? 0),
+          stopLossAtEntry: Number(p.initialStopLoss ?? p.entryPrice * 0.97),
+          targetAtEntry: Number(p.target1 ?? p.entryPrice * 1.03),
+          capitalAtEntry: 100000,
+          riskAmount: Math.abs(
+            (Number(p.entryPrice ?? 0) - Number(p.initialStopLoss ?? p.entryPrice * 0.97)) *
+            Number(p.quantity ?? 1)
+          ) || 500,
+          maxRiskPerTradePct: 1.5,
+          positionValue: Number(p.entryPrice ?? 0) * Number(p.quantity ?? 1),
+          maxPositionValue: 25000,
+          bullishScoreAtEntry: null,
+          minBullishScore: 80,
+          wasStopLossWidened: false,
+          exitTrigger: p.exitReason === 'MANUAL_USER_EXIT' ? 'SYSTEM' : 'SYSTEM',
+        });
+      } catch {
+        return null;
+      }
+    }).filter(Boolean);
+
+    const avgQuality = qualityReports.length > 0
+      ? Math.round(qualityReports.reduce((s: number, r: any) => s + r.qualityScore, 0) / qualityReports.length)
+      : 0;
+
+    const goodTrades = qualityReports.filter((r: any) => r.label === 'GOOD_TRADE').length;
+
+    // Drawdown recovery from daily P&L
+    const dailyPnL = dailySummary.currentDailyPnL;
+    const capital = dailySummary.startingCapital;
+    const drawdown = dailyPnL < 0
+      ? calculateDrawdownRecovery(
+          (Math.abs(dailyPnL) / capital) * 100,
+          capital,
+          expectancy.expectancyPerTrade > 0 ? expectancy.expectancyPerTrade : null
+        )
+      : null;
+
+    return { expectancy, avgQuality, goodTrades, totalTrades: qualityReports.length, drawdown };
+  }, [closedPositions, dailySummary]);
+
+
   // 4. Handle Instant & Confirmed Position Exit
   const executePositionExit = async (posToExit: OpenRiskPosition, reason: string) => {
     try {
@@ -544,7 +610,7 @@ export default function LivePositionRiskMonitor({ onExitPosition }: LivePosition
           <div className="col-6 col-sm-3 col-lg-3">
             <div className="p-2.5 rounded-3 bg-dark bg-opacity-50 border border-light border-opacity-10 h-100">
               <span className="text-light opacity-75 d-block" style={{ fontSize: 11 }}>TOTAL OPEN POSITIONS</span>
-              <strong className="fs-5 text-white mt-1">{positions.length} Active</strong>
+              <strong className="fs-5 text-white mt-1" suppressHydrationWarning>{positions.length} Active</strong>
             </div>
           </div>
 
@@ -555,6 +621,7 @@ export default function LivePositionRiskMonitor({ onExitPosition }: LivePosition
                 className={`fs-5 mt-1 ${
                   dailySummary.unrealizedPnL >= 0 ? 'text-success' : 'text-danger'
                 }`}
+                suppressHydrationWarning
               >
                 {dailySummary.unrealizedPnL >= 0 ? '+' : ''}₹
                 {Math.round(dailySummary.unrealizedPnL).toLocaleString('en-IN')}
@@ -565,7 +632,7 @@ export default function LivePositionRiskMonitor({ onExitPosition }: LivePosition
           <div className="col-6 col-sm-3 col-lg-3">
             <div className="p-2.5 rounded-3 bg-dark bg-opacity-50 border border-light border-opacity-10 h-100">
               <span className="text-light opacity-75 d-block" style={{ fontSize: 11 }}>DAILY PEAK PROFIT</span>
-              <strong className="fs-5 text-info mt-1">
+              <strong className="fs-5 text-info mt-1" suppressHydrationWarning>
                 +₹{Math.round(dailySummary.dailyPeakPnL).toLocaleString('en-IN')}
               </strong>
             </div>
@@ -578,6 +645,7 @@ export default function LivePositionRiskMonitor({ onExitPosition }: LivePosition
                 className={`fs-5 mt-1 ${
                   dailySummary.dailyProfitGiveback > 0 ? 'text-warning' : 'text-success'
                 }`}
+                suppressHydrationWarning
               >
                 ₹{Math.round(dailySummary.dailyProfitGiveback).toLocaleString('en-IN')}
               </strong>
@@ -1212,6 +1280,128 @@ export default function LivePositionRiskMonitor({ onExitPosition }: LivePosition
           </div>
         </div>
       )}
+      {/* ── VIDEO LOGIC: EDGE STATS PANEL (Expectancy + Quality + Drawdown) ── */}
+      {edgeStats && (
+        <div className="card border-0 shadow-sm rounded-4 overflow-hidden mb-4 mt-3">
+          <div
+            className="card-header d-flex align-items-center gap-2 border-0 py-3 px-4"
+            style={{ background: 'linear-gradient(90deg, #0d1b2a, #1b263b)' }}
+          >
+            <span className="fs-4">📐</span>
+            <div>
+              <h6 className="fw-bold text-white mb-0">Edge Stats — Institutional Performance Analysis</h6>
+              <small className="text-secondary">
+                Based on {edgeStats.expectancy.totalTrades} closed trade{edgeStats.expectancy.totalTrades !== 1 ? 's' : ''} ·
+                Win Rate is a vanity metric. Track Expectancy.
+              </small>
+            </div>
+            <span
+              className={`ms-auto badge fs-6 px-3 py-2 fw-bold ${
+                edgeStats.expectancy.grade === 'INSTITUTIONAL'
+                  ? 'bg-success'
+                  : edgeStats.expectancy.grade === 'DEVELOPING'
+                  ? 'bg-warning text-dark'
+                  : edgeStats.expectancy.grade === 'RETAIL_BEHAVIOR'
+                  ? 'bg-danger'
+                  : 'bg-secondary'
+              }`}
+            >
+              {edgeStats.expectancy.grade === 'INSTITUTIONAL' ? '🏛️' :
+               edgeStats.expectancy.grade === 'DEVELOPING' ? '📈' :
+               edgeStats.expectancy.grade === 'RETAIL_BEHAVIOR' ? '🚨' : '📋'}{' '}
+              {edgeStats.expectancy.grade.replace('_', ' ')}
+            </span>
+          </div>
+
+          <div className="card-body px-4 py-3">
+            {/* ── Expectancy Row ── */}
+            <div className="row g-3 mb-3">
+              <div className="col-6 col-md-3">
+                <div className="p-3 rounded-3 bg-light text-center">
+                  <div className="small text-muted fw-semibold mb-1">Expectancy / Trade</div>
+                  <div className={`fs-5 fw-bold ${edgeStats.expectancy.expectancyPerTrade >= 0 ? 'text-success' : 'text-danger'}`}>
+                    {edgeStats.expectancy.expectancyPerTrade >= 0 ? '+' : ''}₹{edgeStats.expectancy.expectancyPerTrade}
+                  </div>
+                  <small className="text-muted">
+                    {edgeStats.expectancy.expectancyPerTrade >= 0 ? 'Positive edge ✅' : 'Negative edge ❌'}
+                  </small>
+                </div>
+              </div>
+
+              <div className="col-6 col-md-3">
+                <div className="p-3 rounded-3 bg-light text-center">
+                  <div className="small text-muted fw-semibold mb-1">Win Rate</div>
+                  <div className="fs-5 fw-bold text-dark">{edgeStats.expectancy.winRatePct}%</div>
+                  <small className="text-muted">
+                    {edgeStats.expectancy.winCount}W / {edgeStats.expectancy.lossCount}L
+                  </small>
+                </div>
+              </div>
+
+              <div className="col-6 col-md-3">
+                <div className="p-3 rounded-3 bg-light text-center">
+                  <div className="small text-muted fw-semibold mb-1">Profit Factor</div>
+                  <div className={`fs-5 fw-bold ${edgeStats.expectancy.profitFactor >= 1.5 ? 'text-success' : edgeStats.expectancy.profitFactor >= 1 ? 'text-warning' : 'text-danger'}`}>
+                    {edgeStats.expectancy.profitFactor}×
+                  </div>
+                  <small className="text-muted">
+                    {edgeStats.expectancy.profitFactor >= 2 ? 'Excellent' : edgeStats.expectancy.profitFactor >= 1.5 ? 'Good' : edgeStats.expectancy.profitFactor >= 1 ? 'Breakeven' : 'Losing system'}
+                  </small>
+                </div>
+              </div>
+
+              <div className="col-6 col-md-3">
+                <div className="p-3 rounded-3 bg-light text-center">
+                  <div className="small text-muted fw-semibold mb-1">Trade Quality</div>
+                  <div className={`fs-5 fw-bold ${edgeStats.avgQuality >= 80 ? 'text-success' : edgeStats.avgQuality >= 60 ? 'text-warning' : 'text-danger'}`}>
+                    {edgeStats.avgQuality}/100
+                  </div>
+                  <small className="text-muted">
+                    {edgeStats.goodTrades}/{edgeStats.totalTrades} good trades
+                  </small>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Key Insight ── */}
+            <div className={`rounded-3 p-3 small mb-3 border ${
+              edgeStats.expectancy.grade === 'INSTITUTIONAL' ? 'bg-success-subtle border-success-subtle text-success-emphasis' :
+              edgeStats.expectancy.grade === 'RETAIL_BEHAVIOR' ? 'bg-danger-subtle border-danger-subtle text-danger-emphasis' :
+              'bg-warning-subtle border-warning-subtle text-warning-emphasis'
+            }`}>
+              {edgeStats.expectancy.gradeSummary}
+            </div>
+
+            {/* ── Drawdown Recovery ── */}
+            {edgeStats.drawdown && (
+              <div className={`rounded-3 p-3 small border ${
+                edgeStats.drawdown.riskLevel === 'CRITICAL' ? 'bg-danger-subtle border-danger-subtle text-danger-emphasis' :
+                edgeStats.drawdown.riskLevel === 'SEVERE' ? 'bg-warning-subtle border-warning-subtle text-warning-emphasis' :
+                'bg-info-subtle border-info-subtle text-info-emphasis'
+              }`}>
+                <strong>
+                  {edgeStats.drawdown.riskLevel === 'CRITICAL' ? '🚨' : '⚠️'} Drawdown Recovery Math:
+                </strong>{' '}
+                {edgeStats.drawdown.recoveryMessage}
+              </div>
+            )}
+
+            {/* ── Top Insight from Expectancy Engine ── */}
+            {edgeStats.expectancy.insights.length > 0 && (
+              <div className="mt-3">
+                <div className="small fw-bold text-muted mb-2">KEY INSIGHTS</div>
+                <div className="d-flex flex-column gap-1">
+                  {edgeStats.expectancy.insights.slice(0, 3).map((insight, i) => (
+                    <div key={i} className="small bg-light rounded-2 px-3 py-2 border">{insight}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── ADD POSITION MODAL ── */}
     </div>
   );
 }

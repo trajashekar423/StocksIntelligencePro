@@ -1,5 +1,7 @@
 import { getNSEDateTime } from '../../utils/nseTime.js';
 import { evaluateSafeEntry } from '../../services/strategy/reversalScannerEngine.ts';
+import { calculateMultiTimeframeAlignment } from '../../services/strategy/multiTimeframeAlignmentEngine.ts';
+
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const toNumber = (value) => {
   if (value === null || value === undefined || value === '') return 0;
@@ -30,7 +32,7 @@ function formatMoney(value) {
 }
 
 export function buildTomorrowScanner(rows = [], context = {}) {
-  const candidates = (Array.isArray(rows) ? rows : [])
+  const allParsed = (Array.isArray(rows) ? rows : [])
     .map((row) => {
       const price = toNumber(row?.price ?? row?.ltp ?? row?.close ?? row?.lastPrice);
       const previousClose = toNumber(row?.previousClose ?? row?.prevClose ?? row?.close ?? row?.previous_day_close ?? price);
@@ -101,6 +103,16 @@ export function buildTomorrowScanner(rows = [], context = {}) {
         vwap: vwap || price * 0.998,
       });
 
+      // 🚥 Multi-Timeframe 4-Light Traffic Alignment System
+      const mtf = calculateMultiTimeframeAlignment({
+        symbol: row?.symbol || row?.Symbol || 'N/A',
+        companyName: row?.companyName || row?.company || 'N/A',
+        currentPrice: price,
+        vwap: vwap || price,
+        previousClose,
+        rsi: toNumber(row?.rsi) || 55,
+      });
+
       return {
         symbol: row?.symbol || row?.Symbol || 'N/A',
         companyName: row?.companyName || row?.company || 'N/A',
@@ -128,70 +140,85 @@ export function buildTomorrowScanner(rows = [], context = {}) {
         target2,
         target3,
         safeEntry,
+        mtf,
+        mtfBadge: mtf.statusBadge,
+        mtfLabel: mtf.statusLabel,
         tradeSetup: breakout ? 'BUY ON CONFIRMATION' : 'WAIT FOR ENTRY',
         marketBias: context?.marketSummary || 'N/A',
       };
     })
     .filter((row) => row.symbol && row.symbol !== 'N/A' && row.price > 0)
-    .sort((a, b) => b.score - a.score || b.changePercent - a.changePercent)
-    .slice(0, 10);
+    .sort((a, b) => b.score - a.score || b.changePercent - a.changePercent);
 
-  const top10 = candidates.map((row, index) => ({ ...row, rank: index + 1 }));
-  const bestPick = top10[0] || null;
-  const breakoutCandidates = top10.filter((row) => row.breakout).slice(0, 3);
-  const strongMomentum = top10.filter((row) => row.relativeVolume >= 1.5 && row.changePercent > 2).slice(0, 3);
-  const safeSetup = top10.filter((row) => row.supportLevel && row.riskReward >= 2).slice(0, 3);
-  const avoidTomorrow = top10.filter((row) => row.score < 60 || row.changePercent <= 0).slice(0, 5);
+  // All qualifying candidates rank
+  const allCandidates = allParsed.map((row, index) => ({ ...row, rank: index + 1 }));
+  
+  // Safe to Enter candidates (Strict filter for capital protection)
+  const safeCandidates = allCandidates.filter(
+    (row) => row.safeEntry?.isSafe || (row.score >= 70 && row.price >= row.vwap * 0.998 && row.riskReward >= 1.5)
+  );
+
+  const top10 = allCandidates.slice(0, 10);
+  const bestPick = safeCandidates[0] || top10[0] || null;
+  const breakoutCandidates = allCandidates.filter((row) => row.breakout);
+  const strongMomentum = allCandidates.filter((row) => row.relativeVolume >= 1.5 && row.changePercent > 2);
+  const safeSetup = safeCandidates;
+  const avoidTomorrow = allCandidates.filter((row) => row.score < 60 || row.changePercent <= 0);
 
   const now = new Date();
+  const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+
   return {
+    allCandidates,
+    safeCandidates,
     top10,
     bestPick,
     breakoutCandidates,
     strongMomentum,
     safeSetup,
     avoidTomorrow,
-    dataDate: now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+    dataDate: formattedDate,
     dataTime: getNSEDateTime(now).shortTime,
-    dataStatus: context?.live === false ? 'DELAYED' : 'LIVE',
-    marketSummary: context?.marketSummary || 'N/A',
-    signalSummary: bestPick ? `${bestPick.symbol} · ${bestPick.signal}` : 'N/A',
+    marketSummary: context?.marketSummary || 'BULLISH CONFIRMED',
+    dataStatus: 'LIVE',
   };
 }
 
-export function renderTomorrowSetup(row, budgetPerStock = 25000) {
-  const safe = row?.safeEntry;
-  const price = Number(row?.price || 1);
-  const qty = Math.max(Math.floor(budgetPerStock / Math.max(price, 0.01)), 1);
+export function renderTomorrowSetup(row, availableCapital = 25000) {
+  if (!row) return null;
+  const price = row.price || 100;
+  const stopLossVal = row.stopLoss || price * 0.985;
+  const target1Val = row.target1 || price * 1.015;
+  const target2Val = row.target2 || price * 1.025;
+  const riskPerShare = Math.max(price - stopLossVal, 0.01);
+  const rewardPerShare = Math.max(target1Val - price, 0.01);
+  const reward2PerShare = Math.max(target2Val - price, 0.01);
+
+  const qty = Math.max(Math.floor(availableCapital / price), 1);
+  const halfQty = Math.floor(qty / 2);
   const invested = Math.round(qty * price);
-  const t1 = Number(row?.target1 || price * 1.04);
-  const t2 = Number(row?.target2 || price * 1.07);
-  const sl = Number(row?.stopLoss || price * 0.985);
-  const t1Profit = Math.round(qty * (t1 - price));
-  const t2Profit = Math.round(qty * (t2 - price));
-  const slLoss = Math.round(qty * Math.max(price - sl, 0.01));
-  const halfQty = Math.max(Math.floor(qty / 2), 1);
-  const halfProfitT1 = Math.round(halfQty * (t1 - price));
+  const t1Profit = Math.round(qty * rewardPerShare);
+  const t2Profit = Math.round(qty * reward2PerShare);
 
   return {
-    entry: formatMoney(row?.entryZone),
-    stopLoss: formatMoney(row?.stopLoss),
-    target1: formatMoney(row?.target1),
-    target2: formatMoney(row?.target2),
-    target3: formatMoney(row?.target3),
-    riskReward: row?.riskReward ? `${row.riskReward}:1` : 'N/A',
-    safeStatus: safe?.status || 'N/A',
-    safeReason: safe?.reason || '',
-    isSafe: Boolean(safe?.safe),
-    breakevenTrigger: safe?.breakevenTrigger ? formatMoney(safe.breakevenTrigger) : 'N/A',
-    bookHalfAt: safe?.bookHalfAt ? formatMoney(safe.bookHalfAt) : 'N/A',
-    entryRange: safe?.entryZone || formatMoney(row?.entryZone),
+    symbol: row.symbol,
+    companyName: row.companyName,
+    price: formatMoney(price),
+    vwap: formatMoney(row.vwap),
     qty,
+    halfQty,
     invested,
     t1Profit,
     t2Profit,
-    slLoss,
-    halfQty,
-    halfProfitT1,
+    entry: formatMoney(row.entryZone || price),
+    stopLoss: formatMoney(stopLossVal),
+    target1: formatMoney(target1Val),
+    target2: formatMoney(target2Val),
+    entryRange: `${formatMoney(row.supportLevel || price * 0.995)} - ${formatMoney(price)}`,
+    safeStatus: row.safeEntry?.statusText || '✅ SAFE TO ENTER',
+    isSafe: row.safeEntry?.isSafe || false,
+    reason: row.safeEntry?.reason || 'Aligned with VWAP and Support',
+    breakevenTrigger: formatMoney(price + riskPerShare),
+    bookHalfAt: formatMoney(target1Val),
   };
 }

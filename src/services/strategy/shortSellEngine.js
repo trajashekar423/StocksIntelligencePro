@@ -180,7 +180,7 @@ export function evaluateGlobalShortCues({
 /**
  * Evaluates individual stock for Short Selling Conviction (0 - 100 Points)
  */
-export function evaluateShortStock(stock, globalCues = null) {
+export function evaluateShortStock(stock, globalCues = null, liveNews = null) {
   const symbol = stock.symbol || stock.Symbol || 'STOCK';
   const companyName = stock.companyName || stock.company || symbol;
   const ltp = Number(stock.price || stock.ltp || stock.lastPrice || stock.basePrice || 0);
@@ -252,10 +252,37 @@ export function evaluateShortStock(stock, globalCues = null) {
 
   // 3. NEWS & STRUCTURAL HEADWINDS (Max 20 Pts)
   const knownCatalyst = SHORT_CATALYST_DIRECTORY.find((c) => c.symbol === symbol);
-  const headline = stock.newsHeadline || knownCatalyst?.newsHeadline || 'Sectoral Margin Pressure & FII Offloading';
-  const catalystBadge = stock.catalystBadge || knownCatalyst?.catalystBadge || '📉 Intraday Breakdown';
+  let headline = stock.newsHeadline || knownCatalyst?.newsHeadline || 'Sectoral Margin Pressure & FII Offloading';
+  let catalystBadge = stock.catalystBadge || knownCatalyst?.catalystBadge || '📉 Intraday Breakdown';
 
-  if (knownCatalyst || stock.catalystType) {
+  // ── Live News Integration (dynamic scoring) ──
+  if (liveNews && liveNews.overallScore !== undefined) {
+    // Live negative news → full 20 pts (same weight as known catalyst)
+    // Live positive news → only 4 pts (reduces short conviction)
+    if (liveNews.overallScore <= -0.3) {
+      newsScore += 20;
+      shortChecklist.push(`📰 Live News: Strongly Negative Sentiment (${liveNews.negativeCount} negative headlines)`);
+    } else if (liveNews.overallScore <= -0.1) {
+      newsScore += 14;
+      shortChecklist.push(`📰 Live News: Moderately Negative Sentiment`);
+    } else if (liveNews.overallScore >= 0.3) {
+      newsScore += 4;
+      shortChecklist.push(`⚠️ Live News: Positive sentiment detected (reduces short conviction)`);
+    } else {
+      newsScore += 8;
+      shortChecklist.push(`📰 Live News: Neutral Sentiment`);
+    }
+    // Use live headline if available
+    if (liveNews.topHeadline?.title) {
+      headline = liveNews.topHeadline.title;
+    }
+    if (liveNews.overallSentiment === 'NEGATIVE') {
+      catalystBadge = '📰 Live Negative News';
+    } else if (liveNews.overallSentiment === 'POSITIVE') {
+      catalystBadge = '📰 Positive News (Caution)';
+    }
+  } else if (knownCatalyst || stock.catalystType) {
+    // ── Static Catalyst Scoring (fallback) ──
     newsScore += 20;
     shortChecklist.push(`Catalyst: ${knownCatalyst?.catalystImpact || 'Negative News Headwind'}`);
   } else if (pChange <= -2.0) {
@@ -343,8 +370,11 @@ export function evaluateShortStock(stock, globalCues = null) {
 
 /**
  * Runs full scan across stock list to rank Top Short Sell Candidates
+ * @param {Array} stocks - Stock list to scan
+ * @param {Object} globalParams - Global market parameters
+ * @param {Object} liveNewsMap - Optional map of { symbol: sentimentData } from live news API
  */
-export function runShortSellScan(stocks = [], globalParams = {}) {
+export function runShortSellScan(stocks = [], globalParams = {}, liveNewsMap = {}) {
   const globalCues = evaluateGlobalShortCues(globalParams);
 
   // Combine provided stocks with default known catalysts if needed
@@ -356,7 +386,11 @@ export function runShortSellScan(stocks = [], globalParams = {}) {
   });
 
   const evaluated = combinedList
-    .map((s) => evaluateShortStock(s, globalCues))
+    .map((s) => {
+      const sym = (s.symbol || s.Symbol || '').toUpperCase();
+      const liveNews = liveNewsMap[sym]?.sentiment || null;
+      return evaluateShortStock(s, globalCues, liveNews);
+    })
     .filter((s) => s.price > 0 && s.score >= 50);
 
   // Sort descending by Short Conviction Score
