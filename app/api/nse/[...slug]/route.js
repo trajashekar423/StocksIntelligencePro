@@ -412,23 +412,6 @@ export async function GET(req, context = {}) {
       return jsonResponse({ data: FALLBACK_EQUITY_BASKET.slice(0, 15) }, 200, { 'x-fallback': 'most-active-fallback' });
     }
 
-    const SYMBOL_ALIASES = {
-      ADVIT: 'RAMBHAJO',
-      'ADVIT JEWELS': 'RAMBHAJO',
-      'ADVIT-JEWELS': 'RAMBHAJO',
-      'ADVITJEWELS': 'RAMBHAJO',
-      NICTO: 'NITCO',
-      INFOSYS: 'INFY',
-      'TATA MOTORS': 'TATAMOTORS',
-      'TATA STEEL': 'TATASTEEL',
-      'STATE BANK': 'SBIN',
-      'SBI': 'SBIN',
-      'HDFC': 'HDFCBANK',
-      'ICICI': 'ICICIBANK',
-      'RELIANCE IND': 'RELIANCE',
-      'RIL': 'RELIANCE',
-    };
-
     const normalizeSymbol = (sym) => {
       if (!sym) return '';
       const cleaned = String(sym).replace(/^EQN:/, '').replace(/:.*$/, '').trim().toUpperCase();
