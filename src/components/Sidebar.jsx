@@ -47,16 +47,15 @@ export default function Sidebar({ collapsed, mobileOpen = false, onToggle, onClo
         }}
       >
         {/* Brand */}
-        <div className="sb-brand d-flex align-items-center gap-3">
-          <div className="sb-logo">
-            <span className="sb-logo-r">R</span>
-          </div>
-          {!collapsed && (
-            <div className="sb-brand-text">
-              <span className="sb-brand-name">RaNevra</span>
-              <span className="sb-brand-sub">Merchant Portal</span>
-            </div>
-          )}
+        <div className="sb-brand d-flex align-items-center gap-2 px-1 py-2">
+          <img
+            src="/stocks_intelligence_pro_logo.png"
+            alt="Stocks Intelligence Pro"
+            style={{ height: collapsed ? '28px' : '36px', width: 'auto', objectFit: 'contain' }}
+            onError={(e) => {
+              e.target.src = '/logo.png';
+            }}
+          />
         </div>
 
         {/* Nav */}

@@ -2810,28 +2810,18 @@ export default function Stocks() {
         </div>
       </div>
 
-      {/* STATUS */}
-
+      {/* STATUS NOTIFICATIONS */}
       {loading && (
-        <div className="alert alert-info">
-          Refreshing Groww/NSE
-          scanner...
+        <div className="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1.5 mb-3 d-inline-flex align-items-center gap-2">
+          <span className="spinner-border spinner-border-sm" role="status"></span>
+          <span>Syncing Real-Time Market Data...</span>
         </div>
       )}
 
-      {error && (
-        <div className="alert alert-warning">
-          {error}
-        </div>
-      )}
-
-      {scanner.validCount <
-        10 && (
-        <div className="alert alert-warning">
-          Only{' '}
-          {scanner.validCount}{' '}
-          valid stocks are
-          currently available.
+      {error && !loading && (
+        <div className="alert alert-warning py-2 px-3 small rounded-3 mb-3 d-flex align-items-center gap-2 border-warning">
+          <span>⚠️</span>
+          <span>{error}</span>
         </div>
       )}
 

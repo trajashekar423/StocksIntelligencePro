@@ -16,7 +16,7 @@ export default function MarketSentimentAlertBanner({
   lastUpdated,
   onRefresh,
 }) {
-  const [isAccordionOpen, setIsAccordionOpen] = useState(true);
+  const [isAccordionOpen, setIsAccordionOpen] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [showGlobalModal, setShowGlobalModal] = useState(false);
 
