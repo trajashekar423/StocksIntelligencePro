@@ -140,9 +140,9 @@ export default function IntradayTradingModule() {
     // Find top-ranked high-conviction candidate setup (Score >= 80, Above VWAP, R:R >= 2:1)
     const topCandidate = stocks.find(
       (s) =>
-        s.score >= 80 &&
-        s.aboveVwap &&
-        (s.riskRewardRatio ? s.riskRewardRatio >= 2 : true) &&
+        (s.score ?? s.bullishScore) >= 80 &&
+        (s.aboveVwap ?? (s.ltp >= s.vwap)) &&
+        (s.riskRewardRatio ? s.riskRewardRatio >= 2 : s.riskReward >= 2) &&
         !positions.some((p) => p.symbol === s.symbol)
     );
 
@@ -153,7 +153,7 @@ export default function IntradayTradingModule() {
 
       setActionMessage({
         type: 'info',
-        text: `🤖 AI Auto-Pilot: High-conviction setup detected for ${topCandidate.symbol} (Score: ${topCandidate.score}/100, Above VWAP). Auto-executing order...`,
+        text: `🤖 AI Auto-Pilot: High-conviction setup detected for ${topCandidate.symbol} (Score: ${topCandidate.score ?? topCandidate.bullishScore}/100, Above VWAP). Auto-executing order...`,
       });
 
       fetch('/api/trading/buy', {

@@ -72,11 +72,14 @@ export interface ScannerStock {
   support: number;
   resistance: number;
   bullishScore: number;
+  score?: number;
+  aboveVwap?: boolean;
   signal: SignalLevel;
   entryPrice: number;
   target: number;
   stopLoss: number;
   riskReward: number;
+  riskRewardRatio?: number;
   suggestedQty?: number;
   adx?: number;
   atr?: number;
