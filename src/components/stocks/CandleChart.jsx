@@ -417,6 +417,8 @@ export default function CandleChart({
         targetLevel = Number((c.low * 0.996).toFixed(2));
         explanation = upperWickPct >= 0.38
           ? `Candle ${i + 1} (${c.time || ''}) formed an Upper Wick Rejection at peak ₹${c.high.toFixed(2)}. Next candle expected to turn RED or pull back toward ₹${c.low.toFixed(2)}.`
+          : isAboveVwap
+          ? `Candle ${i + 1} (${c.time || ''}) closed red above VWAP (₹${cVwap.toFixed(2)}). Next candle expected to test lower support ₹${c.low.toFixed(2)}.`
           : `Candle ${i + 1} (${c.time || ''}) closed bearish below VWAP (₹${cVwap.toFixed(2)}). Next candle expected to test lower support ₹${c.low.toFixed(2)}.`;
       }
 

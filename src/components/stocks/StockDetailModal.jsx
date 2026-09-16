@@ -4,13 +4,14 @@ import React, { useState } from 'react';
 import CandleChart from './CandleChart';
 import CandleExplainer from './CandleExplainer';
 import { evaluateOverboughtStatus } from '../../services/risk/overboughtEngine';
+import { evaluateSMCTradeSetup, getQuickSMCStatus } from '../../services/strategy/smcEngine';
 
 export default function StockDetailModal({
   stock,
   onClose,
   onQuickTrade = null,
 }) {
-  const [modalTab, setModalTab] = useState('chart'); // 'chart' | 'anatomy' | 'levels' | 'raw'
+  const [modalTab, setModalTab] = useState('chart'); // 'chart' | 'anatomy' | 'smc' | 'levels' | 'raw'
   const [selectedCandle, setSelectedCandle] = useState(null);
   const [isFullModal, setIsFullModal] = useState(false);
 
@@ -34,6 +35,17 @@ export default function StockDetailModal({
     rsi: Number(stock.rsi || 60),
   });
 
+  // Universal SMC Evaluation
+  const smcStatus = getQuickSMCStatus(stock);
+  const smcEval = evaluateSMCTradeSetup({
+    symbol,
+    companyName,
+    sector: stock.sector || 'NSE Equities',
+    candles: Array.isArray(stock.candles) ? stock.candles : [],
+    vwap,
+    currentPrice: ltp,
+  });
+
   return (
     <div className="modal d-block" tabIndex="-1" role="dialog" style={{ backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', zIndex: 1060 }}>
       <div className={`modal-dialog ${isFullModal ? 'modal-fullscreen' : 'modal-xl modal-dialog-centered modal-dialog-scrollable'}`} role="document">
@@ -48,6 +60,11 @@ export default function StockDetailModal({
                   {isBelowVwap && (
                     <span className="badge bg-danger text-white fw-bold px-2 py-1 shadow-sm">
                       ❌ DO NOT BUY — Still dumping below ₹{vwap.toFixed(2)} VWAP
+                    </span>
+                  )}
+                  {smcStatus.badgeText && (
+                    <span className={`badge ${smcStatus.badgeClass} px-2 py-1 shadow-sm`}>
+                      {smcStatus.badgeText}
                     </span>
                   )}
                   {obEval.isOverbought && (
@@ -116,6 +133,15 @@ export default function StockDetailModal({
               <li className="nav-item">
                 <button
                   type="button"
+                  className={`nav-link border-0 fw-semibold pb-2 ${modalTab === 'smc' ? 'active border-bottom border-primary border-3 text-primary' : 'text-muted'}`}
+                  onClick={() => setModalTab('smc')}
+                >
+                  🧠 Smart Money (OB/FVG)
+                </button>
+              </li>
+              <li className="nav-item">
+                <button
+                  type="button"
                   className={`nav-link border-0 fw-semibold pb-2 ${modalTab === 'anatomy' ? 'active border-bottom border-primary border-3 text-primary' : 'text-muted'}`}
                   onClick={() => setModalTab('anatomy')}
                 >
@@ -164,6 +190,70 @@ export default function StockDetailModal({
                     selectedStock={stock}
                     activeCandle={selectedCandle}
                   />
+                </div>
+              </div>
+            )}
+
+            {/* ── TAB 1.5: SMART MONEY CONCEPTS (OB & FVG) ── */}
+            {modalTab === 'smc' && (
+              <div className="card border-0 shadow-sm p-4 rounded-4 bg-dark text-white">
+                <div className="d-flex align-items-center justify-content-between mb-3 border-bottom border-secondary border-opacity-40 pb-2">
+                  <div className="d-flex align-items-center gap-2">
+                    <span className="fs-4">🧠</span>
+                    <h5 className="fw-bold mb-0 text-warning">Smart Money Concepts Analysis ({symbol})</h5>
+                  </div>
+                  <span className={`badge ${smcEval.signalType === 'BUY' ? 'bg-success text-white' : smcEval.signalType === 'SELL' ? 'bg-danger text-white' : 'bg-secondary'} px-3 py-1.5 fs-6 fw-bold`}>
+                    {smcEval.signalType === 'BUY' ? '🟢 BUY LIMIT' : smcEval.signalType === 'SELL' ? '🔴 SELL LIMIT' : '⚪ STANDBY'}
+                  </span>
+                </div>
+
+                <div className="row g-3 mb-3 text-center">
+                  <div className="col-12 col-md-4">
+                    <div className="p-3 rounded-3 bg-black bg-opacity-40 border border-secondary border-opacity-40">
+                      <small className="text-light opacity-75 d-block mb-1">Recommended Entry</small>
+                      <strong className="fs-5 text-white">₹{smcEval.entryPrice.toFixed(2)}</strong>
+                    </div>
+                  </div>
+                  <div className="col-12 col-md-4">
+                    <div className="p-3 rounded-3 bg-danger bg-opacity-30 border border-danger">
+                      <small className="text-white d-block mb-1 fw-bold">Stop Loss (SL)</small>
+                      <strong className="fs-5 fw-bold" style={{ color: '#ff6b6b' }}>₹{smcEval.stopLoss.toFixed(2)}</strong>
+                    </div>
+                  </div>
+                  <div className="col-12 col-md-4">
+                    <div className="p-3 rounded-3 bg-success bg-opacity-30 border border-success">
+                      <small className="text-white d-block mb-1 fw-bold">Target 1 (1:2 R:R)</small>
+                      <strong className="fs-5 fw-bold" style={{ color: '#4ade80' }}>₹{smcEval.takeProfit1.toFixed(2)}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mb-3">
+                  <h6 className="fw-bold text-warning mb-2">⚡ Active Order Blocks & Imbalances</h6>
+                  <div className="d-flex flex-wrap gap-2 mb-2">
+                    {smcEval.orderBlocks.map((ob) => (
+                      <span key={ob.id} className={`badge ${ob.type === 'BULLISH_OB' ? 'bg-success' : 'bg-danger'} text-white p-2 fw-bold`}>
+                        {ob.type === 'BULLISH_OB' ? '🎯 Bullish OB' : '🔴 Bearish OB'}: ₹{ob.low} - ₹{ob.high}
+                      </span>
+                    ))}
+                    {smcEval.activeFVGs.map((fvg) => (
+                      <span key={fvg.id} className="badge bg-warning text-dark p-2 fw-bold">
+                        ⚡ FVG Imbalance: ₹{fvg.bottom} - ₹{fvg.top} ({fvg.fillPct}% filled)
+                      </span>
+                    ))}
+                    {!smcEval.orderBlocks.length && !smcEval.activeFVGs.length && (
+                      <span className="text-muted small">No active OB or FVG gap detected on current timeframe.</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-3 bg-black bg-opacity-30 border border-light border-opacity-10">
+                  <h6 className="fw-bold text-warning mb-2">🧠 Institutional Confluence Checklist</h6>
+                  <ul className="mb-0 text-white small ps-3">
+                    {smcEval.confluenceFactors.map((fact, idx) => (
+                      <li key={idx} className="mb-1">{fact}</li>
+                    ))}
+                  </ul>
                 </div>
               </div>
             )}

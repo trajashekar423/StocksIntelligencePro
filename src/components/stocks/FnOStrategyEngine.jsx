@@ -19,6 +19,7 @@ import {
   getMockOptionChain,
   suggestStrategy,
 } from '../../services/foEngine.js';
+import ExpirySurgeRadar from './ExpirySurgeRadar';
 
 const DISCLAIMER =
   'This tool provides defined-risk strategy analysis only. It does not guarantee profit. ' +
@@ -612,6 +613,7 @@ export default function FnOStrategyEngine() {
 
   const tabs = [
     { key: 'dashboard', label: 'Dashboard' },
+    { key: 'expiry', label: '⚡ Expiry Surge Radar' },
     { key: 'chain', label: 'Option Chain' },
     { key: 'builder', label: 'Strategy Builder' },
     { key: 'risk', label: 'Risk Config' },
@@ -673,6 +675,14 @@ export default function FnOStrategyEngine() {
           </li>
         ))}
       </ul>
+
+      {/* Expiry Surge Radar */}
+      {activeTab === 'expiry' && (
+        <ExpirySurgeRadar
+          symbol={selectedUnderlying.symbol}
+          currentPrice={selectedUnderlying.spot}
+        />
+      )}
 
       {/* Dashboard */}
       {activeTab === 'dashboard' && (

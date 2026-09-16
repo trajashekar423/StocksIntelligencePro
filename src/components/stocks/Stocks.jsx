@@ -48,6 +48,9 @@ import ReversalQuantScanner from './ReversalQuantScanner.jsx';
 import StockBonusDividend from './StockBonusDividend.jsx';
 import ShortSellRadar from './ShortSellRadar.jsx';
 import TradingSkillDashboard from './TradingSkillDashboard.jsx';
+import GlobalRiskAlertBell from './GlobalRiskAlertBell.jsx';
+import SmartMoneyRadar from './SmartMoneyRadar.jsx';
+import { evaluateGlobalRiskAlerts } from '../../services/market/globalRiskAlertEngine.ts';
 
 const UNAVAILABLE = 'Unavailable';
 
@@ -2617,6 +2620,23 @@ export default function Stocks() {
       ? 'No stocks passed the dashboard filters right now. Check Live Scanner for all scanned rows.'
       : 'No scanner rows loaded. Check NSE proxy/API status and whether the market-data endpoints returned rows.';
 
+  const globalRiskEval = useMemo(() => {
+    return evaluateGlobalRiskAlerts({
+      brentCrudePrice: 92.4,
+      brentCrudeChangePct: 3.8,
+      sp500ChangePct: -1.65,
+      nasdaqChangePct: -1.85,
+      indiaVix: 14.85,
+      indiaVixChangePct: 5.4,
+      fiiNetCrores: -2450,
+      newsHeadlines: [
+        'Geopolitical risk escalates: USA and Iran war tension impacts global equities',
+        'Crude oil surges on Middle East conflict concerns',
+        'FII selling pressure increases in emerging markets',
+      ],
+    });
+  }, []);
+
   /* ==========================================================
      RENDER
      ========================================================== */
@@ -2679,8 +2699,14 @@ export default function Stocks() {
           </div>
         </div>
 
-        <div className="text-end small ms-auto">
-          <span className="text-muted me-2">
+        <div className="text-end small ms-auto d-flex align-items-center gap-2">
+          <GlobalRiskAlertBell
+            alerts={globalRiskEval.alerts}
+            overallRiskLevel={globalRiskEval.overallRiskLevel}
+            overallRiskScore={globalRiskEval.overallRiskScore}
+            riskSummary={globalRiskEval.riskSummary}
+          />
+          <span className="text-muted me-2 ms-1">
             {lastUpdated ? `Last Sync: ${getNSEDateTime(lastUpdated).shortTime} IST` : ''}
           </span>
         </div>
@@ -3502,6 +3528,10 @@ export default function Stocks() {
 
       {activeTab === 'stock-bonus-dividend' && (
         <StockBonusDividend />
+      )}
+
+      {activeTab === 'smart-money-smc' && (
+        <SmartMoneyRadar capital={capital} />
       )}
 
       {selectedStock && (

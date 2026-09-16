@@ -64,6 +64,12 @@ export const STOCK_TAB_HELP = {
     description: 'Institutional quantitative confluence: Global Macro (20%) + Indian Market Regime (30%) + Stock Technicals (35%) + Liquidity (10%) + Risk Gate (5%).',
     beginnerTip: 'Identifies Top 10 LONG on bullish days and Top 10 SHORT on bearish days with complete mathematical explainability.',
   },
+  'smart-money-smc': {
+    title: '🧠 Smart Money Concepts (OB, FVG & Range Sweeps)',
+    tone: 'gold',
+    description: 'Scans for institutional Order Blocks, unfilled Fair Value Gaps (imbalances), and liquidity sweep setups with defined 1:2+ R:R targets.',
+    beginnerTip: 'Wait for price to pull back into the green/red Order Block zone before placing your entry. Never chase green candles at resistance!',
+  },
   'seasonal-radar': {
     title: 'Indian Seasonal & Festival Market Radar',
     tone: 'gold',

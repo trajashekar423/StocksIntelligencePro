@@ -16,6 +16,8 @@
  * Total: 100 Points
  */
 
+import { getQuickSMCStatus } from './smcEngine.ts';
+
 export interface IntradayScoreInput {
   price: number;
   open?: number;
@@ -227,6 +229,16 @@ export function calculateIntradayScore(input: IntradayScoreInput): IntradayScore
   const sectorScore = Number((sectorFactor * 5).toFixed(2));
 
   // -------------------------------------------------------------
+  // FACTOR 9: SMC - Smart Money Order Block & FVG Bonus
+  // -------------------------------------------------------------
+  const smcStatus = getQuickSMCStatus({
+    price,
+    vwap,
+    changePercent,
+    relativeVolume,
+  });
+
+  // -------------------------------------------------------------
   // TOTAL COMPOSITE INTRADAY SCORE (0 - 100)
   // -------------------------------------------------------------
   const rawTotal =
@@ -237,7 +249,8 @@ export function calculateIntradayScore(input: IntradayScoreInput): IntradayScore
     breakoutScore +
     trendScore +
     riskRewardScore +
-    sectorScore;
+    sectorScore +
+    smcStatus.smcBonusScore;
 
   const finalScore = Math.min(Math.max(Math.round(rawTotal), 0), 100);
 
