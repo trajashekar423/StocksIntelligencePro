@@ -211,19 +211,19 @@ export default function StockDetailModal({
                   <div className="col-12 col-md-4">
                     <div className="p-3 rounded-3 bg-black bg-opacity-40 border border-secondary border-opacity-40">
                       <small className="text-light opacity-75 d-block mb-1">Recommended Entry</small>
-                      <strong className="fs-5 text-white">₹{smcEval.entryPrice.toFixed(2)}</strong>
+                      <strong className="fs-5 text-white">₹{Number(smcEval?.entryPrice || ltp).toFixed(2)}</strong>
                     </div>
                   </div>
                   <div className="col-12 col-md-4">
                     <div className="p-3 rounded-3 bg-danger bg-opacity-30 border border-danger">
                       <small className="text-white d-block mb-1 fw-bold">Stop Loss (SL)</small>
-                      <strong className="fs-5 fw-bold" style={{ color: '#ff6b6b' }}>₹{smcEval.stopLoss.toFixed(2)}</strong>
+                      <strong className="fs-5 fw-bold" style={{ color: '#ff6b6b' }}>₹{Number(smcEval?.stopLoss || (ltp * 0.985)).toFixed(2)}</strong>
                     </div>
                   </div>
                   <div className="col-12 col-md-4">
                     <div className="p-3 rounded-3 bg-success bg-opacity-30 border border-success">
                       <small className="text-white d-block mb-1 fw-bold">Target 1 (1:2 R:R)</small>
-                      <strong className="fs-5 fw-bold" style={{ color: '#4ade80' }}>₹{smcEval.takeProfit1.toFixed(2)}</strong>
+                      <strong className="fs-5 fw-bold" style={{ color: '#4ade80' }}>₹{Number(smcEval?.takeProfit1 || (ltp * 1.03)).toFixed(2)}</strong>
                     </div>
                   </div>
                 </div>
@@ -231,17 +231,17 @@ export default function StockDetailModal({
                 <div className="mb-3">
                   <h6 className="fw-bold text-warning mb-2">⚡ Active Order Blocks & Imbalances</h6>
                   <div className="d-flex flex-wrap gap-2 mb-2">
-                    {smcEval.orderBlocks.map((ob) => (
+                    {(smcEval?.orderBlocks || []).map((ob) => (
                       <span key={ob.id} className={`badge ${ob.type === 'BULLISH_OB' ? 'bg-success' : 'bg-danger'} text-white p-2 fw-bold`}>
                         {ob.type === 'BULLISH_OB' ? '🎯 Bullish OB' : '🔴 Bearish OB'}: ₹{ob.low} - ₹{ob.high}
                       </span>
                     ))}
-                    {smcEval.activeFVGs.map((fvg) => (
+                    {(smcEval?.activeFVGs || []).map((fvg) => (
                       <span key={fvg.id} className="badge bg-warning text-dark p-2 fw-bold">
                         ⚡ FVG Imbalance: ₹{fvg.bottom} - ₹{fvg.top} ({fvg.fillPct}% filled)
                       </span>
                     ))}
-                    {!smcEval.orderBlocks.length && !smcEval.activeFVGs.length && (
+                    {!(smcEval?.orderBlocks || []).length && !(smcEval?.activeFVGs || []).length && (
                       <span className="text-muted small">No active OB or FVG gap detected on current timeframe.</span>
                     )}
                   </div>
@@ -250,7 +250,7 @@ export default function StockDetailModal({
                 <div className="p-3 rounded-3 bg-black bg-opacity-30 border border-light border-opacity-10">
                   <h6 className="fw-bold text-warning mb-2">🧠 Institutional Confluence Checklist</h6>
                   <ul className="mb-0 text-white small ps-3">
-                    {smcEval.confluenceFactors.map((fact, idx) => (
+                    {(smcEval?.confluenceFactors || []).map((fact, idx) => (
                       <li key={idx} className="mb-1">{fact}</li>
                     ))}
                   </ul>
