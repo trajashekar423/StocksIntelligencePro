@@ -50,6 +50,7 @@ import ShortSellRadar from './ShortSellRadar.jsx';
 import TradingSkillDashboard from './TradingSkillDashboard.jsx';
 import GlobalRiskAlertBell from './GlobalRiskAlertBell.jsx';
 import SmartMoneyRadar from './SmartMoneyRadar.jsx';
+import PositionalSwingRadar from './PositionalSwingRadar.jsx';
 import { evaluateGlobalRiskAlerts } from '../../services/market/globalRiskAlertEngine.ts';
 
 const UNAVAILABLE = 'Unavailable';
@@ -3532,6 +3533,18 @@ export default function Stocks() {
 
       {activeTab === 'smart-money-smc' && (
         <SmartMoneyRadar capital={capital} />
+      )}
+
+      {activeTab === 'positional-swing' && (
+        <PositionalSwingRadar
+          onQuickTrade={(s) => {
+            setSelectedStock(s);
+            setActiveTab('trading');
+          }}
+          onSendToPractice={() => {
+            setActiveTab('practice-trading');
+          }}
+        />
       )}
 
       {selectedStock && (

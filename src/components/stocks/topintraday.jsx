@@ -18,6 +18,7 @@ export default function TopIntraday({ activeTab, onChange }) {
     { key: 'reversal-scanner', label: '🔄 Reversal & Bounce', isLowRisk: true, category: 'STRATEGY', tone: 'green' },
     { key: 'confluence-quant', label: '🧠 Quant Confluence', isLowRisk: true, category: 'STRATEGY', tone: 'gold' },
     { key: 'smart-money-smc', label: '🧠 Smart Money (OB/FVG)', isLowRisk: true, category: 'STRATEGY', tone: 'gold' },
+    { key: 'positional-swing', label: '📅 3–4 Wk Business Swing', isLowRisk: true, category: 'STRATEGY', tone: 'gold' },
     { key: 'nifty50', label: '🇮🇳 NIFTY50 Scanner', isLowRisk: true, category: 'STRATEGY', tone: 'green' },
 
     { key: 'breakouts', label: '🚀 Breakouts', category: 'MOMENTUM', tone: 'green' },
