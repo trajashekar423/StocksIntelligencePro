@@ -38,3 +38,4 @@ describe('📊 Buyer Demand Meter Algorithm', () => {
     assert.ok(calculateBuyerDemandPct(shortBelowVwap) <= 45);
   });
 });
+

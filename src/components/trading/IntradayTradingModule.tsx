@@ -62,6 +62,7 @@ export default function IntradayTradingModule() {
   const [activeTab, setActiveTab] = useState<'scanner' | 'positions' | 'logs' | 'settings'>('scanner');
   const [autoPilot, setAutoPilot] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [failedAutoPilotSymbols, setFailedAutoPilotSymbols] = useState<Record<string, number>>({});
 
   // Load Status & Positions
   const loadStatus = useCallback(async () => {
@@ -137,13 +138,34 @@ export default function IntradayTradingModule() {
   useEffect(() => {
     if (!autoPilot || executingOrder || !config?.enabled || stocks.length === 0) return;
 
+    // 1. Max open positions pre-flight guard (prevents infinite loop when 3/3 positions filled)
+    const maxOpenAllowed = config?.maxOpenPositions ?? 3;
+    if (positions.length >= maxOpenAllowed) {
+      setActionMessage({
+        type: 'error',
+        text: `⚠️ AI Auto-Pilot Standby: Maximum concurrent open positions (${positions.length}/${maxOpenAllowed}) reached. Close an active position to resume auto-execution.`,
+      });
+      return;
+    }
+
+    // 2. Daily max loss pre-flight guard
+    if (stats?.maxLossHit || (stats?.realizedPnL !== undefined && stats.realizedPnL <= -(config?.maxDailyLoss ?? 2000))) {
+      setActionMessage({
+        type: 'error',
+        text: `🛑 AI Auto-Pilot Standby: Daily max loss limit hit. Auto-execution suspended for today.`,
+      });
+      return;
+    }
+
     // Find top-ranked high-conviction candidate setup (Score >= 80, Above VWAP, R:R >= 2:1)
+    // Excludes open positions & symbols currently in failed cooldown
     const topCandidate = stocks.find(
       (s) =>
         (s.score ?? s.bullishScore) >= 80 &&
         (s.aboveVwap ?? (s.ltp >= s.vwap)) &&
         (s.riskRewardRatio ? s.riskRewardRatio >= 2 : s.riskReward >= 2) &&
-        !positions.some((p) => p.symbol === s.symbol)
+        !positions.some((p) => p.symbol === s.symbol) &&
+        !(failedAutoPilotSymbols[s.symbol] && Date.now() < failedAutoPilotSymbols[s.symbol])
     );
 
     if (topCandidate) {
@@ -188,6 +210,11 @@ export default function IntradayTradingModule() {
             });
             loadStatus();
           } else {
+            // Put failing symbol on 60-second cooldown to stop shaking retry loop
+            setFailedAutoPilotSymbols((prev) => ({
+              ...prev,
+              [topCandidate.symbol]: Date.now() + 60000,
+            }));
             setActionMessage({
               type: 'error',
               text: formatMsg(res?.error, `AI Auto-Pilot order for ${topCandidate.symbol} blocked by risk management.`),
@@ -195,6 +222,10 @@ export default function IntradayTradingModule() {
           }
         })
         .catch((err) => {
+          setFailedAutoPilotSymbols((prev) => ({
+            ...prev,
+            [topCandidate.symbol]: Date.now() + 30000,
+          }));
           setActionMessage({
             type: 'error',
             text: formatMsg(err, `Network error executing Auto-Pilot for ${topCandidate.symbol}.`),
@@ -204,11 +235,29 @@ export default function IntradayTradingModule() {
           setExecutingOrder(false);
         });
     }
-  }, [autoPilot, executingOrder, config?.enabled, stocks, positions, loadStatus]);
+  }, [autoPilot, executingOrder, config?.enabled, config?.maxOpenPositions, config?.maxDailyLoss, stocks, positions, stats, failedAutoPilotSymbols, loadStatus]);
 
   // Execute Buy Order
   const handleBuyOrder = async () => {
     if (!selectedStock) return;
+
+    const maxOpenAllowed = config?.maxOpenPositions ?? 3;
+    if (positions.length >= maxOpenAllowed) {
+      setActionMessage({
+        type: 'error',
+        text: `⚠️ Maximum concurrent open positions (${positions.length}/${maxOpenAllowed}) reached. Close an active position first before opening a new trade.`,
+      });
+      return;
+    }
+
+    if (positions.some((p) => p.symbol === selectedStock.symbol)) {
+      setActionMessage({
+        type: 'error',
+        text: `⚠️ An active position for ${selectedStock.symbol} is already open.`,
+      });
+      return;
+    }
+
     setExecutingOrder(true);
     setActionMessage(null);
 
@@ -875,11 +924,30 @@ export default function IntradayTradingModule() {
                   )}
 
 
+                  {/* ── MAX POSITIONS CAP ALERT ────────────────────────────────────────── */}
+                  {positions.length >= (config?.maxOpenPositions ?? 3) && (
+                    <div className="alert alert-warning py-2.5 px-3 small mb-2 rounded-3 border-warning d-flex align-items-center justify-content-between flex-wrap gap-2">
+                      <div>
+                        <strong className="text-dark d-block">⚠️ Max {config?.maxOpenPositions ?? 3} Open Positions Active</strong>
+                        <span className="text-muted" style={{ fontSize: '0.78rem' }}>
+                          Close an active position first to open new trades.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-dark fw-bold px-2.5 py-1 text-nowrap"
+                        onClick={() => setActiveTab('positions')}
+                      >
+                        Manage Positions ➔
+                      </button>
+                    </div>
+                  )}
+
                   <button
                     type="button"
                     className={`btn w-100 py-2 fw-bold text-white rounded-pill shadow-sm mb-2 ${isLive ? 'btn-danger' : 'btn-success'}`}
                     onClick={handleBuyOrder}
-                    disabled={executingOrder || !config?.enabled}
+                    disabled={executingOrder || !config?.enabled || positions.length >= (config?.maxOpenPositions ?? 3)}
                   >
                     {executingOrder ? (
                       <>
