@@ -3,8 +3,8 @@
 export function calculateBuyerDemandPct(stock) {
   if (!stock) return 50;
 
-  const totalBuyQty = Number(stock.totalBuyQty ?? stock.buyQty ?? 0);
-  const totalSellQty = Number(stock.totalSellQty ?? stock.sellQty ?? -1);
+  const totalBuyQty = Number(stock.totalBuyQty ?? stock.buyQty ?? stock.totalBuyQuantity ?? 0);
+  const totalSellQty = Number(stock.totalSellQty ?? stock.sellQty ?? stock.totalSellQuantity ?? -1);
 
   // 1. If real market order depth is present, use exact buyer percentage
   if (totalBuyQty > 0 && totalSellQty >= 0) {
@@ -26,25 +26,72 @@ export function calculateBuyerDemandPct(stock) {
 
   if (isTrulyLockedUC) return 100;
 
-  // 3. Estimate realistic buyer demand percentage for active gainers
-  const changePercent = Number(stock.changePercent ?? stock.pChange ?? stock.perChange ?? stock.change_percentage ?? 0);
+  // 3. Extract changePercent from any potential property name
+  let changePercent = Number(
+    stock.changePercent ??
+    stock.pChange ??
+    stock.perChange ??
+    stock.change_percentage ??
+    stock.dayGainPct ??
+    stock.chgPct ??
+    stock.changePct ??
+    NaN
+  );
 
-  if (changePercent < 0) {
-    return Math.max(10, Math.round(50 + changePercent * 6));
+  // If changePercent is NaN, calculate from price / ltp and previousClose / open
+  const price = Number(stock.price ?? stock.ltp ?? stock.currentPrice ?? stock.close ?? 0);
+  const prev = Number(stock.previousClose ?? stock.prev_price ?? stock.prevClose ?? 0);
+  const open = Number(stock.open ?? stock.open_price ?? 0);
+  const vwap = Number(stock.vwap ?? 0);
+
+  if (isNaN(changePercent)) {
+    if (price > 0 && prev > 0 && price !== prev) {
+      changePercent = ((price - prev) / prev) * 100;
+    } else if (price > 0 && open > 0 && price !== open) {
+      changePercent = ((price - open) / open) * 100;
+    } else {
+      changePercent = 0;
+    }
   }
-  if (changePercent >= 9.8 || changePercent >= 19.8) {
-    return 100; // 10% or 20% circuit lock
+
+  // 4. Estimate realistic buyer demand percentage for active gainers/losers
+  if (changePercent !== 0) {
+    if (changePercent < 0) {
+      return Math.max(10, Math.round(50 + changePercent * 6));
+    }
+    if (changePercent >= 9.8 || changePercent >= 19.8) {
+      return 100; // 10% or 20% circuit lock
+    }
+    if (changePercent >= 5.0) {
+      return Math.min(92, Math.round(80 + (changePercent - 5.0) * 2));
+    }
+    if (changePercent >= 3.0) {
+      return Math.round(72 + (changePercent - 3.0) * 4);
+    }
+    if (changePercent >= 1.5) {
+      return Math.round(62 + (changePercent - 1.5) * 6.6);
+    }
+    return Math.round(50 + changePercent * 8);
   }
-  if (changePercent >= 5.0) {
-    return Math.min(92, Math.round(80 + (changePercent - 5.0) * 2));
+
+  // 5. Fallback for 0% change: derive demand from VWAP position or Signal bias if available
+  if (price > 0 && vwap > 0) {
+    const vwapDiffPct = ((price - vwap) / vwap) * 100;
+    if (vwapDiffPct >= 0) {
+      return Math.min(88, Math.round(58 + vwapDiffPct * 10));
+    } else {
+      return Math.max(12, Math.round(42 + vwapDiffPct * 10));
+    }
   }
-  if (changePercent >= 3.0) {
-    return Math.round(72 + (changePercent - 3.0) * 4);
+
+  if (stock.signal === 'LONG' || (stock.finalScore && stock.finalScore >= 70)) {
+    return 68;
   }
-  if (changePercent >= 1.5) {
-    return Math.round(62 + (changePercent - 1.5) * 6.6);
+  if (stock.signal === 'SHORT') {
+    return 32;
   }
-  return Math.round(50 + changePercent * 8);
+
+  return 50;
 }
 
 export default function BuyerDemandMeter({ stock, compact = false }) {

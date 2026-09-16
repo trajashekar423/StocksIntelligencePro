@@ -33,6 +33,11 @@ export interface RawStockCandidate {
   previousClose?: number;
   previousDayHigh?: number;
   previousDayLow?: number;
+  changePercent?: number;
+  pChange?: number;
+  perChange?: number;
+  totalBuyQty?: number;
+  totalSellQty?: number;
   volume: number;
   averageVolume?: number;
   relativeVolume?: number;
@@ -61,6 +66,11 @@ export interface EvaluatedCandidate {
   symbol: string;
   companyName: string;
   price: number;
+  open: number;
+  previousClose: number;
+  changePercent: number;
+  totalBuyQty?: number;
+  totalSellQty?: number;
   finalScore: number;          // 0 - 100
   marketScore: number;         // 0 - 100 (Indian Market Score)
   globalScore: number;         // 0 - 100 (Global Macro Score)
@@ -551,10 +561,23 @@ export function runConfluenceQuantScan(
       allWarnings.push('⚠️ Positive live news sentiment creates risk for short setup');
     }
 
+    const changePercent = stock.changePercent !== undefined && !isNaN(stock.changePercent)
+      ? stock.changePercent
+      : stock.pChange !== undefined && !isNaN(Number(stock.pChange))
+      ? Number(stock.pChange)
+      : stock.perChange !== undefined && !isNaN(Number(stock.perChange))
+      ? Number(stock.perChange)
+      : prevClose > 0 ? Number((((price - prevClose) / prevClose) * 100).toFixed(2)) : 0;
+
     evaluatedList.push({
       symbol: stock.symbol,
       companyName: stock.companyName || `${stock.symbol} Limited`,
       price,
+      open: Number(stock.open || price),
+      previousClose: prevClose,
+      changePercent,
+      totalBuyQty: stock.totalBuyQty,
+      totalSellQty: stock.totalSellQty,
       finalScore,
       marketScore: indiaResult.marketScore,
       globalScore: globalResult.globalScore,

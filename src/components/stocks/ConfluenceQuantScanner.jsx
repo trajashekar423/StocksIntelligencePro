@@ -71,6 +71,9 @@ export default function ConfluenceQuantScanner({ onQuickTrade = null, onSendToPr
             const low = Number(r.low_price || ltp);
             const vol = Number(r.trade_quantity || r.volume || 1500000);
             const vwap = Number(((open + high + low + ltp) / 4).toFixed(2));
+            const changePercent = Number(r.perChange ?? r.pChange ?? (prev > 0 ? ((ltp - prev) / prev) * 100 : 0));
+            const totalBuyQty = Number(r.totalBuyQuantity || r.totalBuyQty || 0);
+            const totalSellQty = Number(r.totalSellQuantity || r.totalSellQty || 0);
 
             candidateMap.set(sym, {
               symbol: sym,
@@ -86,6 +89,11 @@ export default function ConfluenceQuantScanner({ onQuickTrade = null, onSendToPr
               averageVolume: Math.round(vol / 1.8),
               relativeVolume: Number((vol / Math.max(vol / 1.8, 1)).toFixed(2)),
               vwap,
+              changePercent,
+              pChange: changePercent,
+              perChange: changePercent,
+              totalBuyQty,
+              totalSellQty,
               ema9: Number((ltp * 0.994).toFixed(2)),
               ema20: Number((ltp * 0.985).toFixed(2)),
               ema50: Number((ltp * 0.970).toFixed(2)),
@@ -114,6 +122,9 @@ export default function ConfluenceQuantScanner({ onQuickTrade = null, onSendToPr
             const low = Number(r.low_price || ltp);
             const vol = Number(r.volume || r.trade_quantity || 2000000);
             const vwap = Number(((open + high + low + ltp) / 4).toFixed(2));
+            const changePercent = Number(r.pChange ?? r.perChange ?? (prev > 0 ? ((ltp - prev) / prev) * 100 : 0));
+            const totalBuyQty = Number(r.totalBuyQuantity || r.totalBuyQty || 0);
+            const totalSellQty = Number(r.totalSellQuantity || r.totalSellQty || 0);
 
             candidateMap.set(sym, {
               symbol: sym,
@@ -129,6 +140,11 @@ export default function ConfluenceQuantScanner({ onQuickTrade = null, onSendToPr
               averageVolume: Math.round(vol / 1.6),
               relativeVolume: Number((vol / Math.max(vol / 1.6, 1)).toFixed(2)),
               vwap,
+              changePercent,
+              pChange: changePercent,
+              perChange: changePercent,
+              totalBuyQty,
+              totalSellQty,
               ema9: Number((ltp * 0.992).toFixed(2)),
               ema20: Number((ltp * 0.984).toFixed(2)),
               ema50: Number((ltp * 0.972).toFixed(2)),
@@ -146,15 +162,15 @@ export default function ConfluenceQuantScanner({ onQuickTrade = null, onSendToPr
       // Default institutional pool if market is closed / after-hours
       if (candidateMap.size === 0) {
         const DEFAULT_SEEDS = [
-          { symbol: 'ORIENTTECH', companyName: 'Orient Technologies Limited', price: 368.5, open: 348.0, high: 372.0, low: 346.0, previousClose: 345.0, volume: 5400000, averageVolume: 2100000, relativeVolume: 2.57, vwap: 362.0, ema9: 360.0, ema20: 352.0, ema50: 340.0, rsi: 71.0, atr: 8.5, sector: 'IT & SERVICES', trend5m: 'BULLISH', trend15m: 'BULLISH', trend1h: 'BULLISH' },
-          { symbol: 'RAYMOND', companyName: 'Raymond Limited', price: 2480.0, open: 2410.0, high: 2510.0, low: 2405.0, previousClose: 2400.0, volume: 3800000, averageVolume: 1600000, relativeVolume: 2.38, vwap: 2465.0, ema9: 2450.0, ema20: 2410.0, ema50: 2350.0, rsi: 68.5, atr: 42.0, sector: 'CONSUMER & TEXTILES', trend5m: 'BULLISH', trend15m: 'BULLISH', trend1h: 'BULLISH' },
-          { symbol: 'RELIANCE', companyName: 'Reliance Industries Limited', price: 2980.5, open: 2950.0, high: 2995.0, low: 2945.0, previousClose: 2940.0, volume: 4500000, averageVolume: 2200000, relativeVolume: 2.05, vwap: 2968.0, ema9: 2972.0, ema20: 2955.0, ema50: 2930.0, rsi: 63.5, atr: 32.0, sector: 'ENERGY', trend5m: 'BULLISH', trend15m: 'BULLISH', trend1h: 'BULLISH' },
-          { symbol: 'TATAMOTORS', companyName: 'Tata Motors Limited', price: 1045.0, open: 1025.0, high: 1052.0, low: 1020.0, previousClose: 1022.0, volume: 6800000, averageVolume: 3500000, relativeVolume: 1.94, vwap: 1038.0, ema9: 1040.0, ema20: 1030.0, ema50: 1015.0, rsi: 65.0, atr: 16.5, sector: 'AUTO', trend5m: 'BULLISH', trend15m: 'BULLISH', trend1h: 'BULLISH' },
-          { symbol: 'INFY', companyName: 'Infosys Limited', price: 1820.0, open: 1805.0, high: 1828.0, low: 1800.0, previousClose: 1802.0, volume: 3800000, averageVolume: 2400000, relativeVolume: 1.58, vwap: 1814.0, ema9: 1816.0, ema20: 1808.0, ema50: 1795.0, rsi: 59.0, atr: 22.0, sector: 'IT', trend5m: 'BULLISH', trend15m: 'BULLISH', trend1h: 'BULLISH' },
-          { symbol: 'HDFCBANK', companyName: 'HDFC Bank Limited', price: 1625.0, open: 1635.0, high: 1638.0, low: 1618.0, previousClose: 1638.0, volume: 5200000, averageVolume: 4800000, relativeVolume: 1.08, vwap: 1628.0, ema9: 1626.0, ema20: 1632.0, ema50: 1640.0, rsi: 44.0, atr: 18.0, sector: 'BANKING', trend5m: 'BEARISH', trend15m: 'BEARISH', trend1h: 'BEARISH' },
-          { symbol: 'TATASTEEL', companyName: 'Tata Steel Limited', price: 148.5, open: 152.0, high: 152.5, low: 147.8, previousClose: 153.0, volume: 18000000, averageVolume: 11000000, relativeVolume: 1.63, vwap: 149.8, ema9: 149.0, ema20: 151.2, ema50: 153.5, rsi: 36.5, atr: 2.8, sector: 'METALS', trend5m: 'BEARISH', trend15m: 'BEARISH', trend1h: 'BEARISH' },
-          { symbol: 'SUNPHARMA', companyName: 'Sun Pharmaceutical Ind.', price: 1780.0, open: 1770.0, high: 1792.0, low: 1768.0, previousClose: 1765.0, volume: 2100000, averageVolume: 1400000, relativeVolume: 1.50, vwap: 1776.0, ema9: 1778.0, ema20: 1769.0, ema50: 1755.0, rsi: 61.0, atr: 24.0, sector: 'PHARMA', trend5m: 'BULLISH', trend15m: 'BULLISH', trend1h: 'BULLISH' },
-          { symbol: 'DLF', companyName: 'DLF Limited', price: 865.0, open: 845.0, high: 872.0, low: 842.0, previousClose: 844.0, volume: 4200000, averageVolume: 2100000, relativeVolume: 2.0, vwap: 858.0, ema9: 861.0, ema20: 850.0, ema50: 835.0, rsi: 67.0, atr: 14.0, sector: 'REALTY', trend5m: 'BULLISH', trend15m: 'BULLISH', trend1h: 'BULLISH' },
+          { symbol: 'ORIENTTECH', companyName: 'Orient Technologies Limited', price: 368.5, open: 348.0, high: 372.0, low: 346.0, previousClose: 345.0, volume: 5400000, averageVolume: 2100000, relativeVolume: 2.57, vwap: 362.0, ema9: 360.0, ema20: 352.0, ema50: 340.0, rsi: 71.0, atr: 8.5, sector: 'IT & SERVICES', trend5m: 'BULLISH', trend15m: 'BULLISH', trend1h: 'BULLISH', changePercent: 6.81, pChange: 6.81 },
+          { symbol: 'RAYMOND', companyName: 'Raymond Limited', price: 2480.0, open: 2410.0, high: 2510.0, low: 2405.0, previousClose: 2400.0, volume: 3800000, averageVolume: 1600000, relativeVolume: 2.38, vwap: 2465.0, ema9: 2450.0, ema20: 2410.0, ema50: 2350.0, rsi: 68.5, atr: 42.0, sector: 'CONSUMER & TEXTILES', trend5m: 'BULLISH', trend15m: 'BULLISH', trend1h: 'BULLISH', changePercent: 3.33, pChange: 3.33 },
+          { symbol: 'RELIANCE', companyName: 'Reliance Industries Limited', price: 2980.5, open: 2950.0, high: 2995.0, low: 2945.0, previousClose: 2940.0, volume: 4500000, averageVolume: 2200000, relativeVolume: 2.05, vwap: 2968.0, ema9: 2972.0, ema20: 2955.0, ema50: 2930.0, rsi: 63.5, atr: 32.0, sector: 'ENERGY', trend5m: 'BULLISH', trend15m: 'BULLISH', trend1h: 'BULLISH', changePercent: 1.38, pChange: 1.38 },
+          { symbol: 'TATAMOTORS', companyName: 'Tata Motors Limited', price: 1045.0, open: 1025.0, high: 1052.0, low: 1020.0, previousClose: 1022.0, volume: 6800000, averageVolume: 3500000, relativeVolume: 1.94, vwap: 1038.0, ema9: 1040.0, ema20: 1030.0, ema50: 1015.0, rsi: 65.0, atr: 16.5, sector: 'AUTO', trend5m: 'BULLISH', trend15m: 'BULLISH', trend1h: 'BULLISH', changePercent: 2.25, pChange: 2.25 },
+          { symbol: 'INFY', companyName: 'Infosys Limited', price: 1820.0, open: 1805.0, high: 1828.0, low: 1800.0, previousClose: 1802.0, volume: 3800000, averageVolume: 2400000, relativeVolume: 1.58, vwap: 1814.0, ema9: 1816.0, ema20: 1808.0, ema50: 1795.0, rsi: 59.0, atr: 22.0, sector: 'IT', trend5m: 'BULLISH', trend15m: 'BULLISH', trend1h: 'BULLISH', changePercent: 1.00, pChange: 1.00 },
+          { symbol: 'HDFCBANK', companyName: 'HDFC Bank Limited', price: 1625.0, open: 1635.0, high: 1638.0, low: 1618.0, previousClose: 1638.0, volume: 5200000, averageVolume: 4800000, relativeVolume: 1.08, vwap: 1628.0, ema9: 1626.0, ema20: 1632.0, ema50: 1640.0, rsi: 44.0, atr: 18.0, sector: 'BANKING', trend5m: 'BEARISH', trend15m: 'BEARISH', trend1h: 'BEARISH', changePercent: -0.79, pChange: -0.79 },
+          { symbol: 'TATASTEEL', companyName: 'Tata Steel Limited', price: 148.5, open: 152.0, high: 152.5, low: 147.8, previousClose: 153.0, volume: 18000000, averageVolume: 11000000, relativeVolume: 1.63, vwap: 149.8, ema9: 149.0, ema20: 151.2, ema50: 153.5, rsi: 36.5, atr: 2.8, sector: 'METALS', trend5m: 'BEARISH', trend15m: 'BEARISH', trend1h: 'BEARISH', changePercent: -2.94, pChange: -2.94 },
+          { symbol: 'SUNPHARMA', companyName: 'Sun Pharmaceutical Ind.', price: 1780.0, open: 1770.0, high: 1792.0, low: 1768.0, previousClose: 1765.0, volume: 2100000, averageVolume: 1400000, relativeVolume: 1.50, vwap: 1776.0, ema9: 1778.0, ema20: 1769.0, ema50: 1755.0, rsi: 61.0, atr: 24.0, sector: 'PHARMA', trend5m: 'BULLISH', trend15m: 'BULLISH', trend1h: 'BULLISH', changePercent: 0.85, pChange: 0.85 },
+          { symbol: 'DLF', companyName: 'DLF Limited', price: 865.0, open: 845.0, high: 872.0, low: 842.0, previousClose: 844.0, volume: 4200000, averageVolume: 2100000, relativeVolume: 2.0, vwap: 858.0, ema9: 861.0, ema20: 850.0, ema50: 835.0, rsi: 67.0, atr: 14.0, sector: 'REALTY', trend5m: 'BULLISH', trend15m: 'BULLISH', trend1h: 'BULLISH', changePercent: 2.49, pChange: 2.49 },
         ];
         DEFAULT_SEEDS.forEach((s) => candidateMap.set(s.symbol, s));
       }
