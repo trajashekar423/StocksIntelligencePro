@@ -51,6 +51,7 @@ import TradingSkillDashboard from './TradingSkillDashboard.jsx';
 import GlobalRiskAlertBell from './GlobalRiskAlertBell.jsx';
 import SmartMoneyRadar from './SmartMoneyRadar.jsx';
 import PositionalSwingRadar from './PositionalSwingRadar.jsx';
+import MultibaggerTurnaroundRadar from './MultibaggerTurnaroundRadar.jsx';
 import { evaluateGlobalRiskAlerts } from '../../services/market/globalRiskAlertEngine.ts';
 
 const UNAVAILABLE = 'Unavailable';
@@ -3537,6 +3538,18 @@ export default function Stocks() {
 
       {activeTab === 'positional-swing' && (
         <PositionalSwingRadar
+          onQuickTrade={(s) => {
+            setSelectedStock(s);
+            setActiveTab('trading');
+          }}
+          onSendToPractice={() => {
+            setActiveTab('practice-trading');
+          }}
+        />
+      )}
+
+      {activeTab === 'multibagger-radar' && (
+        <MultibaggerTurnaroundRadar
           onQuickTrade={(s) => {
             setSelectedStock(s);
             setActiveTab('trading');
